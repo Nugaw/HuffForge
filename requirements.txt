@@ -1,0 +1,7 @@
+customtkinter>=5.2.0
+
+# tkinter itself is part of the Python standard library, not installed via pip.
+# On Ubuntu/Debian, if `import tkinter` fails, install it with:
+#     sudo apt install python3-tk
+# On Windows, tkinter ships with the official python.org installer already,
+# so no extra step is needed there.
