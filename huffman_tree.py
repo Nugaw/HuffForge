@@ -137,20 +137,35 @@ def decode_with_tree(root: Node, bitstring: str) -> bytearray:
     return decoded
 
 
-def print_tree(node: Node, prefix: str = "", is_last: bool = True,
-               is_root: bool = True) -> None:
-    """Print an indented ASCII view of the tree, purely so you can *see*
-    the binary tree you just built. Leaves show the byte and its
-    frequency; internal nodes show only the combined frequency."""
+def tree_to_string(node: Node, prefix: str = "", is_last: bool = True,
+                    is_root: bool = True) -> str:
+    """Build an indented ASCII view of the tree as a single string, purely
+    so you can *see* the binary tree you just built. Leaves show the byte
+    and its frequency; internal nodes show only the combined frequency.
+    Used by both the CLI (print_tree, below) and the GUI's "View Huffman
+    Tree" window, so the two front ends stay in sync automatically."""
     if node is None:
-        return
+        return ""
     connector = "" if is_root else ("`-- " if is_last else "|-- ")
+    lines = []
     if node.is_leaf():
         printable = chr(node.symbol) if 32 <= node.symbol <= 126 else f"0x{node.symbol:02x}"
-        print(f"{prefix}{connector}Leaf(byte={printable!r}, freq={node.freq})")
+        lines.append(f"{prefix}{connector}Leaf(byte={printable!r}, freq={node.freq})")
     else:
-        print(f"{prefix}{connector}Node(freq={node.freq})")
+        lines.append(f"{prefix}{connector}Node(freq={node.freq})")
         extension = "    " if is_last else "|   "
         new_prefix = prefix if is_root else prefix + extension
-        print_tree(node.left, new_prefix, False, False)
-        print_tree(node.right, new_prefix, True, False)
+        left_str = tree_to_string(node.left, new_prefix, False, False)
+        right_str = tree_to_string(node.right, new_prefix, True, False)
+        if left_str:
+            lines.append(left_str)
+        if right_str:
+            lines.append(right_str)
+    return "\n".join(lines)
+
+
+def print_tree(node: Node) -> None:
+    """Print the ASCII tree view to stdout (used by the CLI)."""
+    text = tree_to_string(node)
+    if text:
+        print(text)

@@ -16,23 +16,29 @@ structure you built.
 ```
 huffman_zipper/
 ├── heap.py                  # your min-heap (priority queue), documented
-├── huffman_tree.py          # Node class, tree building, codes, tree visualizer
+├── huffman_tree.py          # Node class, tree building, codes, tree text-view
+├── huffman_steps.py         # step-by-step tree builder used by the GUI visualizer
 ├── huffman_compressor.py    # file format + compress/decompress engine
 ├── cli.py                   # command-line interface
-├── gui.py                   # customtkinter desktop app
+├── gui.py                   # customtkinter dashboard + tree/steps windows
 ├── sample.txt                # a file to try compression on immediately
 ├── tests/
-│   └── test_huffman.py      # round-trip correctness tests
+│   └── test_huffman.py      # round-trip and step-builder correctness tests
 ├── requirements.txt
+├── .gitignore
 └── README.md
 ```
 
 **How the pieces fit together:** `heap.py` is a plain min-heap used as a
 priority queue. `huffman_tree.py` uses it to build a Huffman **binary
 tree** out of byte frequencies, then walks that tree to generate codes
-(and, on the way back, to decode them). `huffman_compressor.py` wraps
-that tree logic with real file I/O and a binary file format. `cli.py`
-and `gui.py` are just two different front ends for the same engine.
+(and, on the way back, to decode them) - this is what actually runs
+during compression. `huffman_steps.py` builds the *same kind* of tree a
+different way (the classic "two queue" method) purely so the GUI's
+"How Huffman Works" window can record and replay it one merge at a time.
+`huffman_compressor.py` wraps the real tree logic with file I/O and a
+binary file format. `cli.py` and `gui.py` are two different front ends
+for that same engine.
 
 ---
 
@@ -92,10 +98,28 @@ python cli.py decompress myphoto_compressed.huf -o restored.png
 python gui.py
 ```
 
-Two buttons — "Compress a file" and "Decompress a .huf file" — plus a
-dark-mode switch. Compressing shows the resulting file size and how much
-space was saved; decompressing writes `<name>_decompressed.<ext>` next to
-the original by default.
+The main window is a small dashboard:
+
+- **Compress a file** / **Decompress a .huf file** — same behavior as the
+  CLI. Compressing shows the resulting size and space saved; decompressing
+  writes `<name>_decompressed.<ext>` next to the original by default.
+- **View Huffman Tree** — opens the final tree for whichever file you just
+  processed in its own window (the GUI equivalent of the CLI's
+  `--visualize` flag). Disabled until you've compressed or decompressed
+  at least one file.
+- **How Huffman Works** — opens a separate window that builds a Huffman
+  tree one merge at a time, with Back/Next buttons, drawn as the
+  "row of boxes" you'd see in a textbook walkthrough. Two ways to feed it
+  data:
+    - type your own `symbol:freq` pairs (a "Load textbook example" button
+      fills in a classic 10-node example to try first), or
+    - click "Visualize my last compressed file" to see the same process
+      run on the 12 most frequent bytes from whatever you last compressed
+      (capped at 12 so the boxes stay readable — the real compression
+      still uses every byte, this view is just for following along)
+- **Activity panel** — a running, timestamped log of every file you've
+  compressed/decompressed this session, with sizes and ratios.
+- **Dark mode switch**.
 
 ### Tests
 

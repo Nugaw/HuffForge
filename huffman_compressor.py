@@ -43,6 +43,7 @@ from huffman_tree import (
     rebuild_tree_from_codes,
     decode_with_tree,
     print_tree,
+    tree_to_string,
 )
 
 MAGIC = b"HUFZ"
@@ -50,7 +51,9 @@ MAGIC = b"HUFZ"
 
 class HuffmanZipper:
     def __init__(self):
-        self._last_tree = None  # kept around so visualize_last_tree() works
+        self._last_tree = None       # kept around so visualize_last_tree() works
+        self._last_freq_table = None  # from the last compress_bytes() call
+        self._last_source_label = None  # filename, for the GUI to show
 
     # ---- in-memory API (bytes in, bytes out) --------------------------
 
@@ -62,6 +65,7 @@ class HuffmanZipper:
         root = build_huffman_tree(freq_table)
         codes = build_codes(root)
         self._last_tree = root
+        self._last_freq_table = freq_table
 
         ext_bytes = extension.encode("utf-8")
         if len(ext_bytes) > 255:
@@ -129,6 +133,7 @@ class HuffmanZipper:
 
         extension = os.path.splitext(input_path)[1]
         compressed = self.compress_bytes(data, extension)
+        self._last_source_label = os.path.basename(input_path)
 
         if output_path is None:
             output_path = os.path.splitext(input_path)[0] + ".huf"
@@ -166,6 +171,37 @@ class HuffmanZipper:
             print("No tree to show yet - run compress or decompress first.")
             return
         print_tree(self._last_tree)
+
+    def get_last_tree_text(self) -> str:
+        """Same tree view as visualize_last_tree(), but returned as a
+        string instead of printed - used by the GUI's tree window."""
+        if self._last_tree is None:
+            return "No tree to show yet - compress or decompress a file first."
+        return tree_to_string(self._last_tree)
+
+    def get_last_top_frequencies(self, limit: int = 12) -> dict:
+        """
+        The last COMPRESSED file's most frequent bytes, trimmed to `limit`
+        entries and relabeled with printable characters (e.g. 65 -> 'A').
+        Used by the GUI's step-by-step visualizer: a real file can have up
+        to 256 distinct byte values, which is too many to lay out
+        readably as a row of boxes, so only the most frequent ones are
+        shown. This does NOT affect actual compression/decompression,
+        which always uses every byte.
+        """
+        if not self._last_freq_table:
+            return {}
+        top = sorted(self._last_freq_table.items(), key=lambda kv: -kv[1])[:limit]
+        result = {}
+        for byte_value, freq in top:
+            label = chr(byte_value) if 32 <= byte_value <= 126 else f"0x{byte_value:02x}"
+            # guard against two different byte values mapping to the same
+            # printable label (shouldn't happen since keys are unique
+            # byte values, but keep it defensive)
+            while label in result:
+                label += " "
+            result[label] = freq
+        return result
 
     # ---- bit-packing helpers --------------------------------------------
 
