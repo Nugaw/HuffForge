@@ -1,2 +1,6 @@
 .txt
 .huf
+
+
+__pycache__/
+*.pyc
