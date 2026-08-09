@@ -174,10 +174,15 @@ class HuffmanZipper:
 
     def get_last_tree_text(self) -> str:
         """Same tree view as visualize_last_tree(), but returned as a
-        string instead of printed - used by the GUI's tree window."""
+        string instead of printed - used by the GUI's text tree view."""
         if self._last_tree is None:
             return "No tree to show yet - compress or decompress a file first."
         return tree_to_string(self._last_tree)
+
+    def get_last_tree(self):
+        """The last built tree's root Node (or None) - used by the GUI's
+        graphical tree view."""
+        return self._last_tree
 
     def get_last_top_frequencies(self, limit: int = 12) -> dict:
         """

@@ -1,21 +1,11 @@
 """
-Desktop GUI for the Huffman zipper, built with customtkinter.
+Huffman Studio - the dark, tabbed desktop GUI for the Huffman zipper.
 
-This replaces app.py. Same basic idea - a small window with compress /
-decompress buttons and a light/dark toggle - but:
-  - it no longer depends on image files that weren't included with the
-    project (imgs/*.gif, *.png, *.ico), so it just runs
-  - it accepts ANY file type to compress, not just .txt
-  - it reports the actual compression ratio instead of a generic message
-  - it shows a real error dialog instead of silently doing nothing if
-    something goes wrong (e.g. decompressing a file that isn't a .huf file)
-  - it can show the Huffman binary tree for the last file you processed,
-    in its own window (previously only available via the CLI's --visualize)
-  - it keeps a running activity log of what you've compressed/decompressed
-    this session, with sizes and ratios
-  - it has a "How Huffman Works" window that steps through the tree
-    construction one merge at a time, drawn as the row-of-boxes forest
-    you'd see in a textbook walkthrough
+One window, three pages switched by a top nav bar (Dashboard,
+Compress/Decompress, Tree Visualizer) instead of separate popup windows.
+Shares one HuffmanZipper instance across pages so "View the tree" and
+"visualize my last file" always reflect whatever was most recently
+compressed or decompressed.
 """
 
 import os
@@ -25,177 +15,522 @@ import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
+import theme
 from huffman_compressor import HuffmanZipper
 from huffman_steps import build_with_steps
+from huffman_tree import build_codes
+from tree_canvas import draw_forest, leaf_count
+import console_log
 
-ctk.set_appearance_mode("light")
+ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 zipper = HuffmanZipper()
-
 TEXTBOOK_EXAMPLE = "A:7,B:9,C:11,D:14,E:18,F:21,G:27,H:29,I:35,J:40"
 
 
+def _scrollable_canvas(parent, bg=theme.BG):
+    """A tk.Canvas with both scrollbars, packed into a themed frame.
+    Returns (frame, canvas) - pack/grid the frame, draw on the canvas."""
+    frame = ctk.CTkFrame(parent, fg_color=theme.CARD_BG, corner_radius=14)
+    canvas = tk.Canvas(frame, bg=bg, highlightthickness=0)
+    vbar = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+    hbar = tk.Scrollbar(frame, orient="horizontal", command=canvas.xview)
+    canvas.configure(yscrollcommand=vbar.set, xscrollcommand=hbar.set)
+
+    canvas.grid(row=0, column=0, sticky="nsew", padx=(12, 0), pady=(12, 0))
+    vbar.grid(row=0, column=1, sticky="ns", pady=(12, 0))
+    hbar.grid(row=1, column=0, sticky="ew", padx=(12, 0))
+    frame.grid_rowconfigure(0, weight=1)
+    frame.grid_columnconfigure(0, weight=1)
+    return frame, canvas
+
+
+def _card(parent, **kw):
+    kw.setdefault("fg_color", theme.CARD_BG)
+    kw.setdefault("corner_radius", 14)
+    return ctk.CTkFrame(parent, **kw)
+
+
+def _section_label(parent, text):
+    return ctk.CTkLabel(parent, text=text, font=theme.font(11, "bold"),
+                         text_color=theme.TEXT_SECONDARY, anchor="w")
+
+
 # ---------------------------------------------------------------------------
-# Tree viewer window (text view of the final tree)
+# Dashboard page
 # ---------------------------------------------------------------------------
 
-class TreeWindow(ctk.CTkToplevel):
-    """A separate window that shows the Huffman tree for whichever file
-    was most recently compressed or decompressed."""
+class DashboardPage(ctk.CTkFrame):
+    def __init__(self, parent, app):
+        super().__init__(parent, fg_color=theme.BG)
+        self.app = app
 
-    def __init__(self, master, tree_text: str):
-        super().__init__(master)
-        self.title("Huffman Tree")
-        self.geometry("560x480")
+        wrapper = ctk.CTkFrame(self, fg_color="transparent")
+        wrapper.pack(expand=True, fill="both", padx=40, pady=30)
 
-        box = ctk.CTkTextbox(self, font=ctk.CTkFont(family="Courier", size=12))
-        box.pack(fill="both", expand=True, padx=12, pady=12)
-        box.insert("1.0", tree_text)
-        box.configure(state="disabled")
+        ctk.CTkLabel(
+            wrapper, text="  DATA STRUCTURES & ALGORITHMS PROJECT  ",
+            font=theme.font(10, "bold"), text_color=theme.CYAN,
+            fg_color=theme.CARD_BG, corner_radius=12,
+        ).pack(pady=(6, 22))
 
+        ctk.CTkLabel(wrapper, text="Compress & Visualize",
+                     font=theme.font(32, "bold"), text_color=theme.TEXT_PRIMARY).pack()
+        ctk.CTkLabel(wrapper, text="with Huffman Coding",
+                     font=theme.font(32, "bold"), text_color=theme.CYAN).pack(pady=(0, 16))
 
-# ---------------------------------------------------------------------------
-# "How Huffman Works" step-by-step visualizer
-# ---------------------------------------------------------------------------
+        ctk.CTkLabel(
+            wrapper,
+            text="An interactive simulator for Huffman's optimal prefix coding "
+                 "algorithm. Reduce file sizes losslessly while watching the\n"
+                 "greedy, queue-based tree construction happen.",
+            font=theme.font(13), text_color=theme.TEXT_SECONDARY, justify="center",
+        ).pack(pady=(0, 30))
 
-LEAF_W = 74      # horizontal space reserved per leaf, in pixels
-LEVEL_H = 78     # vertical space per tree level
-TOP_MARGIN = 40
-LEAF_COLOR = "#e8e8e8"
-MERGED_COLOR = "#bcdcff"
-HIGHLIGHT_COLOR = "#ffcf7a"
-LINE_COLOR = "#666666"
+        cards = ctk.CTkFrame(wrapper, fg_color="transparent")
+        cards.pack(pady=(0, 34))
 
-
-def _leaf_count(node) -> int:
-    if node.is_leaf():
-        return 1
-    left = _leaf_count(node.left) if node.left else 0
-    right = _leaf_count(node.right) if node.right else 0
-    return max(left + right, 1)
-
-
-def _draw_node(canvas, node, x_center, y, unit_w, highlight):
-    if node.is_leaf():
-        canvas.create_rectangle(
-            x_center - 26, y - 18, x_center + 26, y + 18,
-            fill=LEAF_COLOR, outline="#888888",
+        self._feature_card(
+            cards, col=0, icon="\U0001F4C2", icon_color=theme.GREEN,
+            title="File Encoder & Decoder",
+            body="Compress any file and restore it exactly, with real "
+                 "compression metrics and a live console log.",
+            button_text="Launch Encoder Tool  \u2192",
+            button_color=theme.GREEN, button_hover=theme.GREEN_HOVER,
+            button_text_color="#062e13",
+            target="compress",
         )
-        canvas.create_text(x_center, y - 5, text=str(node.symbol), font=("Courier", 11, "bold"))
-        canvas.create_text(x_center, y + 9, text=str(node.freq), font=("Courier", 8))
-        return
+        self._feature_card(
+            cards, col=1, icon="\U0001F333", icon_color=theme.CYAN,
+            title="Tree Graph Visualizer",
+            body="Watch the priority queue combine weights step by step, "
+                 "rendering the binary tree with a 0/1 code for every leaf.",
+            button_text="Visualize Algorithm  \U0001F441",
+            button_color=theme.CYAN, button_hover=theme.CYAN_HOVER,
+            button_text_color="#04212b",
+            target="tree", bordered=True,
+        )
 
-    fill = HIGHLIGHT_COLOR if highlight else MERGED_COLOR
-    canvas.create_oval(
-        x_center - 22, y - 22, x_center + 22, y + 22,
-        fill=fill, outline="#444444", width=2,
-    )
-    canvas.create_text(x_center, y, text=str(node.freq), font=("Courier", 10, "bold"))
+        features = ctk.CTkFrame(wrapper, fg_color="transparent")
+        features.pack(fill="x")
+        for col, (title, body) in enumerate([
+            ("OPTIMAL PREFIX CODING",
+             "No code is a prefix of another, keeping decompression unambiguous."),
+            ("VARIABLE-LENGTH CODES",
+             "Frequent bytes get shorter codes, yielding maximum efficiency."),
+            ("GREEDY CONSTRUCTION",
+             "A min-heap priority queue guarantees an optimal tree every time."),
+        ]):
+            block = ctk.CTkFrame(features, fg_color="transparent")
+            block.grid(row=0, column=col, sticky="nw", padx=(0 if col == 0 else 30, 0))
+            ctk.CTkLabel(block, text=title, font=theme.font(10, "bold"),
+                         text_color=theme.CYAN, anchor="w").pack(fill="x")
+            ctk.CTkLabel(block, text=body, font=theme.font(11), wraplength=260,
+                         text_color=theme.TEXT_SECONDARY, justify="left", anchor="w"
+                         ).pack(fill="x", pady=(4, 0))
 
-    children = [c for c in (node.left, node.right) if c is not None]
-    counts = [_leaf_count(c) for c in children]
-    total = sum(counts) or 1
-    start_x = x_center - unit_w / 2
-    cursor = 0.0
-    for child, count in zip(children, counts):
-        child_w = unit_w * (count / total)
-        child_center = start_x + cursor + child_w / 2
-        canvas.create_line(x_center, y + 22, child_center, y + LEVEL_H - 18,
-                            fill=LINE_COLOR)
-        _draw_node(canvas, child, child_center, y + LEVEL_H, child_w, False)
-        cursor += child_w
+    def _feature_card(self, parent, col, icon, icon_color, title, body,
+                       button_text, button_color, button_hover, button_text_color,
+                       target, bordered=False):
+        card = _card(parent, width=360, height=240,
+                     border_width=1 if bordered else 0,
+                     border_color=theme.CYAN_DIM if bordered else None)
+        card.grid(row=0, column=col, padx=12)
+        card.grid_propagate(False)
+
+        ctk.CTkLabel(card, text=icon, font=theme.font(20), text_color=icon_color,
+                     fg_color=theme.CARD_BG_LIGHT, corner_radius=10,
+                     width=46, height=46).place(x=22, y=20)
+
+        ctk.CTkLabel(card, text=title, font=theme.font(16, "bold"),
+                     text_color=theme.TEXT_PRIMARY, anchor="w"
+                     ).place(x=22, y=80)
+        ctk.CTkLabel(card, text=body, font=theme.font(11), wraplength=310,
+                     text_color=theme.TEXT_SECONDARY, justify="left", anchor="nw"
+                     ).place(x=22, y=112, width=310, height=60)
+
+        ctk.CTkButton(card, text=button_text, fg_color=button_color,
+                      hover_color=button_hover, text_color=button_text_color,
+                      font=theme.font(12, "bold"), height=36,
+                      command=lambda: self.app.show_page(target)
+                      ).place(x=22, y=188)
 
 
-def draw_forest(canvas, forest, merged_node):
-    """Draw the current row of boxes/circles, with each surviving node's
-    already-built subtree hanging beneath it - this is what makes it look
-    like the textbook slide instead of just a flat list."""
-    canvas.delete("all")
-    if not forest:
-        return
+# ---------------------------------------------------------------------------
+# Compress / Decompress page
+# ---------------------------------------------------------------------------
 
-    counts = [_leaf_count(n) for n in forest]
-    total_units = sum(counts)
-    total_width = max(total_units * LEAF_W, 400)
-    canvas.configure(scrollregion=(0, 0, total_width, 420))
+class CompressPage(ctk.CTkFrame):
+    def __init__(self, parent, app):
+        super().__init__(parent, fg_color=theme.BG)
+        self.app = app
+        self.mode = "compress"
+        self.last_result = None
 
-    x = 20
-    for node, count in zip(forest, counts):
-        w = count * LEAF_W
-        center = x + w / 2
-        _draw_node(canvas, node, center, TOP_MARGIN, w, node is merged_node)
-        x += w
+        wrapper = ctk.CTkFrame(self, fg_color="transparent")
+        wrapper.pack(fill="both", expand=True, padx=30, pady=24)
+        wrapper.grid_columnconfigure(0, weight=1)
+        wrapper.grid_columnconfigure(1, weight=1)
+        wrapper.grid_rowconfigure(1, weight=1)
+        wrapper.grid_rowconfigure(2, weight=0)
+
+        # -- mode toggle -----------------------------------------------
+        mode_card = _card(wrapper)
+        mode_card.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 16))
+        _section_label(mode_card, "OPERATION MODE").pack(anchor="w", padx=18, pady=(14, 6))
+        self.mode_switch = ctk.CTkSegmentedButton(
+            mode_card, values=["Compress Mode", "Decompress Mode"],
+            font=theme.font(12, "bold"), selected_color=theme.CYAN,
+            selected_hover_color=theme.CYAN_HOVER, unselected_color=theme.CARD_BG_LIGHT,
+            command=self._on_mode_change, height=38,
+        )
+        self.mode_switch.set("Compress Mode")
+        self.mode_switch.pack(fill="x", padx=18, pady=(0, 18))
+
+        # -- input card --------------------------------------------------
+        input_card = _card(wrapper)
+        input_card.grid(row=1, column=0, sticky="nsew", padx=(0, 8))
+        _section_label(input_card, "INPUT FILE SOURCE").pack(anchor="w", padx=18, pady=(14, 6))
+
+        self.drop_canvas = tk.Canvas(input_card, bg=theme.CARD_BG, highlightthickness=0)
+        self.drop_canvas.pack(fill="both", expand=True, padx=18, pady=(0, 18))
+        self.drop_canvas.bind("<Configure>", lambda e: self._draw_drop_zone())
+        self.drop_canvas.bind("<Button-1>", lambda e: self.browse_file())
+        self.drop_canvas.configure(cursor="hand2")
+
+        # -- metrics card --------------------------------------------------
+        self.metrics_card = _card(wrapper)
+        self.metrics_card.grid(row=1, column=1, sticky="nsew", padx=(8, 0))
+        self._build_metrics_panel()
+
+        # -- console log --------------------------------------------------
+        log_card = _card(wrapper)
+        log_card.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(16, 0))
+        log_header = ctk.CTkFrame(log_card, fg_color="transparent")
+        log_header.pack(fill="x", padx=18, pady=(14, 4))
+        ctk.CTkLabel(log_header, text="\u25CF", text_color=theme.GREEN,
+                     font=theme.font(10)).pack(side="left")
+        ctk.CTkLabel(log_header, text=" CONSOLE STEPS LOG", font=theme.font(11, "bold"),
+                     text_color=theme.TEXT_SECONDARY).pack(side="left")
+
+        self.console = tk.Text(log_card, height=10, bg="#080b12", fg=theme.TEXT_SECONDARY,
+                                insertbackground=theme.TEXT_SECONDARY, relief="flat",
+                                font=(theme.MONO, 10), wrap="none", padx=12, pady=8)
+        self.console.tag_configure("sys", foreground=theme.TEXT_PRIMARY)
+        self.console.tag_configure("algo", foreground=theme.CYAN)
+        self.console.tag_configure("queue", foreground=theme.GREEN)
+        self.console.tag_configure("num", foreground=theme.TEXT_MUTED)
+        self.console.configure(state="disabled")
+        self.console.pack(fill="x", padx=18, pady=(0, 18))
+
+        self._draw_drop_zone()
+
+    # -- mode handling ------------------------------------------------
+
+    def _on_mode_change(self, choice):
+        self.mode = "compress" if choice == "Compress Mode" else "decompress"
+        self.last_result = None
+        self._draw_drop_zone()
+        self._build_metrics_panel()
+        self._clear_console()
+
+    def _draw_drop_zone(self):
+        c = self.drop_canvas
+        c.delete("all")
+        w = max(c.winfo_width(), 200)
+        h = max(c.winfo_height(), 200)
+        c.create_rectangle(6, 6, w - 6, h - 6, outline=theme.CYAN_DIM,
+                            dash=(6, 4), width=2)
+        icon = "\u2601" if self.mode == "compress" else "\U0001F4E4"
+        c.create_text(w / 2, h / 2 - 40, text=icon, font=(theme.SANS, 30),
+                      fill=theme.CYAN)
+        if self.mode == "compress":
+            main_text, sub_text = "Drop your file here", "Any file type - click to browse"
+        else:
+            main_text, sub_text = "Drop your .huf archive here", "Click to browse for a .huf file"
+        c.create_text(w / 2, h / 2, text=main_text, font=(theme.SANS, 14, "bold"),
+                      fill=theme.TEXT_PRIMARY)
+        c.create_text(w / 2, h / 2 + 20, text=sub_text, font=(theme.SANS, 10),
+                      fill=theme.TEXT_MUTED)
+
+    # -- metrics panel --------------------------------------------------
+
+    def _build_metrics_panel(self):
+        for child in self.metrics_card.winfo_children():
+            child.destroy()
+
+        _section_label(self.metrics_card,
+                       "COMPRESSION OUTPUT METRICS" if self.mode == "compress"
+                       else "DECOMPRESSION OUTPUT").pack(anchor="w", padx=18, pady=(14, 10))
+
+        body = ctk.CTkFrame(self.metrics_card, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=18)
+        body.grid_columnconfigure(0, weight=1)
+
+        rows = ctk.CTkFrame(body, fg_color="transparent")
+        rows.grid(row=0, column=0, sticky="nw")
+        self.metric_labels = {}
+        row_defs = (
+            [("Original Size", "original"), ("Compressed Size", "compressed"),
+             ("Savings Ratio", "ratio")] if self.mode == "compress" else
+            [("Archive Size", "original"), ("Restored Size", "compressed"),
+             ("Status", "ratio")]
+        )
+        for r, (label, key) in enumerate(row_defs):
+            ctk.CTkLabel(rows, text=label, font=theme.font(11),
+                         text_color=theme.TEXT_SECONDARY, anchor="w"
+                         ).grid(row=r, column=0, sticky="w", pady=6)
+            value_label = ctk.CTkLabel(rows, text="--", font=theme.font(12, "bold"),
+                                        text_color=theme.TEXT_PRIMARY, anchor="e")
+            value_label.grid(row=r, column=1, sticky="e", padx=(30, 0), pady=6)
+            self.metric_labels[key] = value_label
+
+        if self.mode == "compress":
+            self.ring_canvas = tk.Canvas(body, width=150, height=150,
+                                         bg=theme.CARD_BG, highlightthickness=0)
+            self.ring_canvas.grid(row=0, column=1, padx=(20, 0), sticky="n")
+            self._draw_ring(0)
+        else:
+            self.ring_canvas = None
+
+        actions = ctk.CTkFrame(body, fg_color="transparent")
+        actions.grid(row=1, column=0, columnspan=2, sticky="w", pady=(20, 10))
+        self.save_as_btn = ctk.CTkButton(
+            actions, text="Save output as...", fg_color=theme.CYAN,
+            hover_color=theme.CYAN_HOVER, text_color="#04212b",
+            font=theme.font(12, "bold"), state="disabled", command=self.save_output_as,
+        )
+        self.save_as_btn.pack(side="left", padx=(0, 8))
+        ctk.CTkButton(actions, text="Clear", fg_color="transparent",
+                      border_width=1, border_color=theme.BORDER_LIGHT,
+                      text_color=theme.TEXT_SECONDARY, font=theme.font(12),
+                      command=self._reset_metrics).pack(side="left")
+
+    def _reset_metrics(self):
+        for key, lbl in self.metric_labels.items():
+            lbl.configure(text="--")
+        if self.ring_canvas is not None:
+            self._draw_ring(0)
+        self.save_as_btn.configure(state="disabled")
+        self.last_result = None
+        self._clear_console()
+
+    def _clear_console(self):
+        self.console.configure(state="normal")
+        self.console.delete("1.0", "end")
+        self.console.configure(state="disabled")
+
+    def _draw_ring(self, percent):
+        c = self.ring_canvas
+        c.delete("all")
+        cx, cy, r, w = 75, 75, 58, 12
+        c.create_oval(cx - r, cy - r, cx + r, cy + r, outline=theme.BORDER_LIGHT, width=w)
+        clipped = max(0.0, min(percent, 100.0))
+        if clipped > 0:
+            extent = -clipped * 3.6
+            c.create_arc(cx - r, cy - r, cx + r, cy + r, start=90, extent=extent,
+                         style="arc", outline=theme.CYAN, width=w)
+        c.create_text(cx, cy - 6, text=f"{percent:.1f}%", font=(theme.SANS, 17, "bold"),
+                      fill=theme.TEXT_PRIMARY)
+        c.create_text(cx, cy + 16, text="SPACE SAVED", font=(theme.SANS, 8, "bold"),
+                      fill=theme.TEXT_SECONDARY)
+
+    # -- console log --------------------------------------------------
+
+    def _write_log(self, lines):
+        self.console.configure(state="normal")
+        self.console.delete("1.0", "end")
+        for i, (tag, text) in enumerate(lines, start=1):
+            self.console.insert("end", f"{i:02d}  ", "num")
+            self.console.insert("end", text + "\n", tag)
+        self.console.configure(state="disabled")
+        self.console.see("end")
+
+    # -- actions ------------------------------------------------------
+
+    def browse_file(self):
+        if self.mode == "compress":
+            self._do_compress()
+        else:
+            self._do_decompress()
+
+    def _do_compress(self):
+        path = filedialog.askopenfilename(title="Select a file to compress")
+        if not path:
+            return
+        try:
+            result = zipper.compress_file(path)
+        except Exception as exc:
+            messagebox.showerror("Compression failed", str(exc))
+            return
+        self.last_result = result
+        self.metric_labels["original"].configure(text=f"{result['original_size']:,} Bytes")
+        self.metric_labels["compressed"].configure(
+            text=f"{result['compressed_size']:,} Bytes", text_color=theme.GREEN)
+        self.metric_labels["ratio"].configure(
+            text=f"{result['ratio_percent']:.1f}% Efficiency", text_color=theme.CYAN)
+        self._draw_ring(result["ratio_percent"])
+        self.save_as_btn.configure(state="normal")
+
+        freq_table = zipper.get_last_top_frequencies(None)
+        self._write_log(console_log.compress_log_lines(
+            os.path.basename(path), result["original_size"], freq_table,
+            result["output_path"], result["compressed_size"], result["ratio_percent"],
+        ))
+        self.app.enable_tree_page(f"Compressed {os.path.basename(path)}")
+
+    def _do_decompress(self):
+        path = filedialog.askopenfilename(
+            title="Select a .huf file to decompress",
+            filetypes=(("Huffman archives", "*.huf"), ("all files", "*.*")),
+        )
+        if not path:
+            return
+        try:
+            compressed_size = os.path.getsize(path)
+            result = zipper.decompress_file(path)
+        except Exception as exc:
+            messagebox.showerror("Decompression failed", str(exc))
+            return
+        self.last_result = result
+        self.metric_labels["original"].configure(text=f"{compressed_size:,} Bytes")
+        self.metric_labels["compressed"].configure(
+            text=f"{result['output_size']:,} Bytes", text_color=theme.GREEN)
+        self.metric_labels["ratio"].configure(text="Restored", text_color=theme.GREEN)
+        self.save_as_btn.configure(state="normal")
+
+        self._write_log(console_log.decompress_log_lines(
+            os.path.basename(path), compressed_size,
+            leaf_count(zipper.get_last_tree()), result["output_path"], result["output_size"],
+        ))
+        self.app.enable_tree_page(f"Decompressed {os.path.basename(path)}")
+
+    def save_output_as(self):
+        if not self.last_result:
+            return
+        src = self.last_result["output_path"]
+        default_name = os.path.basename(src)
+        dest = filedialog.asksaveasfilename(initialfile=default_name)
+        if not dest:
+            return
+        try:
+            with open(src, "rb") as f_in, open(dest, "wb") as f_out:
+                f_out.write(f_in.read())
+        except OSError as exc:
+            messagebox.showerror("Couldn't save file", str(exc))
+            return
+        messagebox.showinfo("Saved", f"Saved a copy to:\n{dest}")
 
 
-class StepsWindow(ctk.CTkToplevel):
-    """
-    The 'How Huffman Works' window: builds a Huffman tree one merge at a
-    time and lets you click through it, either on a small example you
-    type in yourself or on the most frequent bytes from the last file
-    you compressed.
-    """
+# ---------------------------------------------------------------------------
+# Tree Visualizer page
+# ---------------------------------------------------------------------------
 
-    def __init__(self, master):
-        super().__init__(master)
-        self.title("How Huffman Works")
-        self.geometry("880x640")
-        self.minsize(640, 480)
+class TreePage(ctk.CTkFrame):
+    AUTOPLAY_DELAY_MS = 900
 
+    def __init__(self, parent, app):
+        super().__init__(parent, fg_color=theme.BG)
+        self.app = app
         self.steps = []
         self.index = 0
+        self.playing = False
+        self.final_root = None
 
-        # -- mode / input controls -----------------------------------
-        controls = ctk.CTkFrame(self)
-        controls.pack(fill="x", padx=12, pady=(12, 6))
+        wrapper = ctk.CTkFrame(self, fg_color="transparent")
+        wrapper.pack(fill="both", expand=True, padx=30, pady=24)
 
-        ctk.CTkLabel(controls, text="Custom example (symbol:freq, comma separated):",
-                     font=ctk.CTkFont(size=12)).grid(row=0, column=0, columnspan=3,
-                                                       sticky="w", padx=8, pady=(8, 2))
+        # -- header row ------------------------------------------------
+        header = ctk.CTkFrame(wrapper, fg_color="transparent")
+        header.pack(fill="x", pady=(0, 6))
+        ctk.CTkLabel(header, text="\U0001F333  Greedy Decision Tree Representation",
+                     font=theme.font(16, "bold"), text_color=theme.TEXT_PRIMARY
+                     ).pack(side="left")
+        self.status_label = ctk.CTkLabel(header, text="No tree loaded yet",
+                                          font=theme.font(11), text_color=theme.TEXT_MUTED)
+        self.status_label.pack(side="right")
 
-        self.entry = ctk.CTkEntry(controls, width=420)
+        # -- input controls ----------------------------------------------
+        controls = _card(wrapper)
+        controls.pack(fill="x", pady=(0, 12))
+        row1 = ctk.CTkFrame(controls, fg_color="transparent")
+        row1.pack(fill="x", padx=16, pady=(14, 6))
+        ctk.CTkLabel(row1, text="Custom example (symbol:freq, comma separated):",
+                     font=theme.font(11), text_color=theme.TEXT_SECONDARY).pack(anchor="w")
+
+        row2 = ctk.CTkFrame(controls, fg_color="transparent")
+        row2.pack(fill="x", padx=16, pady=(0, 14))
+        self.entry = ctk.CTkEntry(row2, width=380, height=32,
+                                   fg_color=theme.CARD_BG_LIGHT, border_color=theme.BORDER_LIGHT)
         self.entry.insert(0, TEXTBOOK_EXAMPLE)
-        self.entry.grid(row=1, column=0, padx=8, pady=(0, 8), sticky="w")
+        self.entry.pack(side="left", padx=(0, 6))
+        ctk.CTkButton(row2, text="Build", width=90, height=32,
+                      fg_color=theme.CYAN, hover_color=theme.CYAN_HOVER,
+                      text_color="#04212b", font=theme.font(12, "bold"),
+                      command=self.build_from_entry).pack(side="left", padx=4)
+        ctk.CTkButton(row2, text="Textbook example", width=140, height=32,
+                      fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
+                      text_color=theme.TEXT_PRIMARY, font=theme.font(12),
+                      command=self.load_textbook_example).pack(side="left", padx=4)
+        ctk.CTkButton(row2, text="Visualize my last file", width=170, height=32,
+                      fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
+                      text_color=theme.TEXT_PRIMARY, font=theme.font(12),
+                      command=self.build_from_last_file).pack(side="left", padx=4)
 
-        ctk.CTkButton(controls, text="Build from text", width=140,
-                      command=self.build_from_entry).grid(row=1, column=1, padx=4)
+        # -- canvas -------------------------------------------------------
+        self.canvas_frame, self.canvas = _scrollable_canvas(wrapper)
+        self.canvas_frame.pack(fill="both", expand=True)
 
-        ctk.CTkButton(controls, text="Load textbook example", width=170,
-                      command=self.load_textbook_example).grid(row=1, column=2, padx=4)
+        # -- playback controls ----------------------------------------
+        nav = ctk.CTkFrame(wrapper, fg_color="transparent")
+        nav.pack(fill="x", pady=(10, 4))
 
-        ctk.CTkButton(controls, text="Visualize my last compressed file (top 12 bytes)",
-                      command=self.build_from_last_file).grid(
-            row=2, column=0, columnspan=3, padx=8, pady=(0, 8), sticky="w")
+        self.back_btn = ctk.CTkButton(nav, text="< Back", width=80, height=30,
+                                       fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
+                                       text_color=theme.TEXT_PRIMARY, state="disabled",
+                                       command=self.go_back)
+        self.back_btn.pack(side="left", padx=4)
 
-        # -- canvas + scrollbar ----------------------------------------
-        canvas_frame = ctk.CTkFrame(self)
-        canvas_frame.pack(fill="both", expand=True, padx=12, pady=6)
+        self.play_btn = ctk.CTkButton(nav, text="Play", width=80, height=30,
+                                       fg_color=theme.CYAN_DIM, hover_color=theme.CYAN_HOVER,
+                                       text_color=theme.TEXT_PRIMARY, state="disabled",
+                                       command=self.toggle_play)
+        self.play_btn.pack(side="left", padx=4)
 
-        self.canvas = tk.Canvas(canvas_frame, bg="#fafafa", highlightthickness=0)
-        hbar = tk.Scrollbar(canvas_frame, orient="horizontal", command=self.canvas.xview)
-        self.canvas.configure(xscrollcommand=hbar.set)
-        self.canvas.pack(fill="both", expand=True)
-        hbar.pack(fill="x")
+        self.next_btn = ctk.CTkButton(nav, text="Next >", width=80, height=30,
+                                       fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
+                                       text_color=theme.TEXT_PRIMARY, state="disabled",
+                                       command=self.go_next)
+        self.next_btn.pack(side="left", padx=4)
 
-        # -- step caption + nav buttons ----------------------------------
-        self.caption = ctk.CTkLabel(self, text="Enter frequencies above and click "
-                                                 "\"Build from text\" to start.",
-                                     font=ctk.CTkFont(size=13))
-        self.caption.pack(pady=(4, 2))
+        self.step_label = ctk.CTkLabel(nav, text="Step 0 of 0", width=100,
+                                        font=theme.font(11), text_color=theme.TEXT_SECONDARY)
+        self.step_label.pack(side="left", padx=(12, 6))
 
-        nav = ctk.CTkFrame(self, fg_color="transparent")
-        nav.pack(pady=(0, 12))
+        self.slider = ctk.CTkSlider(nav, from_=0, to=1, number_of_steps=1, width=260,
+                                     progress_color=theme.CYAN, button_color=theme.CYAN,
+                                     button_hover_color=theme.CYAN_HOVER,
+                                     command=self._on_slider, state="disabled")
+        self.slider.set(0)
+        self.slider.pack(side="left", padx=4)
 
-        self.back_btn = ctk.CTkButton(nav, text="< Back", width=100,
-                                       command=self.go_back, state="disabled")
-        self.back_btn.grid(row=0, column=0, padx=8)
+        self.caption = ctk.CTkLabel(wrapper, text="Load an example above, or compress a "
+                                                    "file on the previous page first.",
+                                     font=theme.font(12), text_color=theme.TEXT_SECONDARY,
+                                     wraplength=900)
+        self.caption.pack(fill="x", pady=(6, 10))
 
-        self.step_label = ctk.CTkLabel(nav, text="Step 0 of 0", width=120)
-        self.step_label.grid(row=0, column=1, padx=8)
+        # -- codes table ----------------------------------------------
+        table_wrap = _card(wrapper)
+        table_wrap.pack(fill="x")
+        _section_label(table_wrap, "RESULTING PREFIX CODES TABLE").pack(
+            anchor="w", padx=16, pady=(12, 6))
+        self.codes_frame = ctk.CTkFrame(table_wrap, fg_color="transparent")
+        self.codes_frame.pack(fill="x", padx=16, pady=(0, 14))
 
-        self.next_btn = ctk.CTkButton(nav, text="Next >", width=100,
-                                       command=self.go_next, state="disabled")
-        self.next_btn.grid(row=0, column=2, padx=8)
+    def on_show(self):
+        pass  # nav bar calls this; nothing extra needed on tab switch
 
     # -- building ------------------------------------------------------
 
@@ -217,37 +552,57 @@ class StepsWindow(ctk.CTkToplevel):
         except (ValueError, IndexError):
             messagebox.showerror(
                 "Couldn't read that",
-                "Use the format symbol:freq, separated by commas - "
-                "e.g. A:7,B:9,C:11",
+                "Use the format symbol:freq, separated by commas - e.g. A:7,B:9,C:11",
             )
             return
         if not freq_table:
             messagebox.showerror("Nothing to build", "Type at least one symbol:freq pair.")
             return
-        self._build(freq_table)
+        self._build(freq_table, "custom example")
 
     def build_from_last_file(self):
         freq_table = zipper.get_last_top_frequencies(limit=12)
         if not freq_table:
             messagebox.showinfo(
                 "No file yet",
-                "Compress a file first (from the main window), then come back "
-                "and click this again.",
+                "Compress a file first, on the Compress / Decompress page, then "
+                "come back and click this again.",
             )
             return
-        self._build(freq_table)
         source = zipper._last_source_label or "the last file"
-        self.caption.configure(
-            text=f"Showing the {len(freq_table)} most frequent bytes from "
-                 f"{source} (full file still uses every byte when compressed)."
-        )
+        self._build(freq_table, f"top {len(freq_table)} bytes of {source}")
 
-    def _build(self, freq_table):
-        _, self.steps = build_with_steps(freq_table)
-        self.index = 0
+    def _build(self, freq_table, status_text):
+        self.playing = False
+        self.play_btn.configure(text="Play")
+        self.final_root, self.steps = build_with_steps(freq_table)
+        self.index = len(self.steps) - 1  # default to the fully-built tree
+
         self.back_btn.configure(state="normal")
         self.next_btn.configure(state="normal")
+        self.play_btn.configure(state="normal")
+        self.slider.configure(state="normal", from_=0, to=max(len(self.steps) - 1, 1),
+                               number_of_steps=max(len(self.steps) - 1, 1))
+        self.status_label.configure(text=f"Showing: {status_text}", text_color=theme.CYAN)
         self._render()
+        self._render_codes_table()
+
+    def _render_codes_table(self):
+        for child in self.codes_frame.winfo_children():
+            child.destroy()
+        if self.final_root is None:
+            return
+        codes = build_codes(self.final_root)
+        items = sorted(codes.items(), key=lambda kv: kv[1])
+        per_row = 6
+        for i, (symbol, code) in enumerate(items):
+            r, c = divmod(i, per_row)
+            pill = ctk.CTkLabel(
+                self.codes_frame, text=f"  {symbol} = {code}  ",
+                font=(theme.MONO, 11, "bold"), text_color=theme.GREEN,
+                fg_color=theme.CARD_BG_LIGHT, corner_radius=8,
+            )
+            pill.grid(row=r, column=c, padx=4, pady=4, sticky="w")
 
     # -- navigation ------------------------------------------------------
 
@@ -255,185 +610,147 @@ class StepsWindow(ctk.CTkToplevel):
         if self.index < len(self.steps) - 1:
             self.index += 1
             self._render()
+        else:
+            self.playing = False
+            self.play_btn.configure(text="Play")
 
     def go_back(self):
+        self.playing = False
+        self.play_btn.configure(text="Play")
         if self.index > 0:
             self.index -= 1
             self._render()
+
+    def _on_slider(self, value):
+        self.playing = False
+        self.play_btn.configure(text="Play")
+        self.index = int(round(value))
+        self._render()
+
+    def toggle_play(self):
+        if not self.steps:
+            return
+        self.playing = not self.playing
+        self.play_btn.configure(text="Pause" if self.playing else "Play")
+        if self.playing:
+            if self.index >= len(self.steps) - 1:
+                self.index = 0
+                self._render()
+            self._auto_step()
+
+    def _auto_step(self):
+        if not self.playing or not self.winfo_exists():
+            return
+        if self.index < len(self.steps) - 1:
+            self.index += 1
+            self._render()
+            self.after(self.AUTOPLAY_DELAY_MS, self._auto_step)
+        else:
+            self.playing = False
+            self.play_btn.configure(text="Play")
 
     def _render(self):
         if not self.steps:
             return
         step = self.steps[self.index]
-        draw_forest(self.canvas, step["forest"], step["merged"])
+        draw_forest(self.canvas, step["forest"], step["merged"], show_edge_labels=True)
 
         self.step_label.configure(text=f"Step {self.index} of {len(self.steps) - 1}")
         self.back_btn.configure(state=("normal" if self.index > 0 else "disabled"))
         self.next_btn.configure(state=("normal" if self.index < len(self.steps) - 1 else "disabled"))
+        self.slider.set(self.index)
 
         merged = step["merged"]
         if merged is None:
             self.caption.configure(
-                text=f"Starting forest: {len(step['forest'])} nodes, "
-                     "none merged yet."
-            )
+                text=f"Starting forest: {len(step['forest'])} nodes, none merged yet.")
+        elif self.index == len(self.steps) - 1:
+            self.caption.configure(
+                text="Fully built tree. Rewind with Back or the slider to replay "
+                     "how it was constructed, merge by merge.")
         else:
             left, right = merged.left, merged.right
             left_label = left.symbol if left.is_leaf() else f"a node (freq {left.freq})"
             right_label = right.symbol if right.is_leaf() else f"a node (freq {right.freq})"
-            if left_label == right_label:
-                self.caption.configure(
-                    text=f"Merged the two smallest nodes into a new node "
-                         f"(freq {merged.freq})."
-                )
-            else:
-                self.caption.configure(
-                    text=f"Merged '{left_label}' (freq {left.freq}) and "
-                         f"'{right_label}' (freq {right.freq}) into a new "
-                         f"node (freq {merged.freq})."
-                )
+            self.caption.configure(
+                text=f"Merged '{left_label}' (freq {left.freq}) and '{right_label}' "
+                     f"(freq {right.freq}) into a new node (freq {merged.freq}).")
 
 
 # ---------------------------------------------------------------------------
-# Main dashboard
+# Main app: nav bar + page switching
 # ---------------------------------------------------------------------------
 
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Huffman File Zipper")
-        self.geometry("480x600")
-        self.resizable(False, False)
+        self.title("Huffman Studio")
+        self.geometry("1200x820")
+        self.minsize(960, 680)
+        self.configure(fg_color=theme.BG)
 
-        title = ctk.CTkLabel(
-            self, text="Huffman File Zipper",
-            font=ctk.CTkFont(size=22, weight="bold"),
-        )
-        title.pack(pady=(25, 5))
+        self.nav_buttons = {}
+        self._build_navbar()
 
-        subtitle = ctk.CTkLabel(
-            self,
-            text="Compress any file using a Huffman binary tree,\n"
-                 "or restore one from a .huf archive.",
-            font=ctk.CTkFont(size=13),
-            justify="center",
-        )
-        subtitle.pack(pady=(0, 20))
+        container = ctk.CTkFrame(self, fg_color=theme.BG, corner_radius=0)
+        container.pack(fill="both", expand=True)
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
 
-        button_row = ctk.CTkFrame(self, fg_color="transparent")
-        button_row.pack(pady=4)
+        self.pages = {}
+        for name, PageClass in [("dashboard", DashboardPage),
+                                 ("compress", CompressPage),
+                                 ("tree", TreePage)]:
+            page = PageClass(container, self)
+            page.grid(row=0, column=0, sticky="nsew")
+            self.pages[name] = page
 
-        ctk.CTkButton(
-            button_row, text="Compress a file", width=220, height=45,
-            command=self.compress_file,
-        ).grid(row=0, column=0, padx=6, pady=6)
+        self.show_page("dashboard")
 
-        ctk.CTkButton(
-            button_row, text="Decompress a .huf file", width=220, height=45,
-            command=self.decompress_file,
-        ).grid(row=0, column=1, padx=6, pady=6)
+    def _build_navbar(self):
+        nav = ctk.CTkFrame(self, fg_color=theme.CARD_BG, height=58, corner_radius=0)
+        nav.pack(fill="x", side="top")
+        nav.pack_propagate(False)
 
-        second_row = ctk.CTkFrame(self, fg_color="transparent")
-        second_row.pack(pady=(4, 15))
+        brand_badge = ctk.CTkLabel(nav, text="H", font=theme.font(15, "bold"),
+                                    text_color="white", fg_color=theme.PURPLE,
+                                    corner_radius=8, width=34, height=34)
+        brand_badge.pack(side="left", padx=(20, 8), pady=12)
 
-        self.tree_button = ctk.CTkButton(
-            second_row, text="View Huffman Tree", width=220, height=38,
-            fg_color="transparent", border_width=1,
-            command=self.show_tree, state="disabled",
-        )
-        self.tree_button.grid(row=0, column=0, padx=6, pady=4)
+        ctk.CTkLabel(nav, text="HUFFMAN STUDIO", font=theme.font(14, "bold"),
+                     text_color=theme.TEXT_PRIMARY).pack(side="left", padx=(0, 30))
 
-        ctk.CTkButton(
-            second_row, text="How Huffman Works", width=220, height=38,
-            fg_color="transparent", border_width=1,
-            command=self.show_steps,
-        ).grid(row=0, column=1, padx=6, pady=4)
-
-        log_label = ctk.CTkLabel(self, text="Activity", anchor="w",
-                                  font=ctk.CTkFont(size=13, weight="bold"))
-        log_label.pack(fill="x", padx=20)
-
-        self.log_box = ctk.CTkTextbox(self, height=220,
-                                       font=ctk.CTkFont(family="Courier", size=11))
-        self.log_box.pack(fill="both", expand=True, padx=20, pady=(5, 15))
-        self.log_box.configure(state="disabled")
-
-        self.theme_switch = ctk.CTkSwitch(
-            self, text="Dark mode", command=self.toggle_theme,
-        )
-        self.theme_switch.pack(pady=(0, 15))
-
-    def toggle_theme(self):
-        ctk.set_appearance_mode("dark" if self.theme_switch.get() else "light")
-
-    def log(self, message: str):
-        timestamp = time.strftime("%H:%M:%S")
-        self.log_box.configure(state="normal")
-        self.log_box.insert("end", f"[{timestamp}] {message}\n")
-        self.log_box.configure(state="disabled")
-        self.log_box.see("end")
-
-    def show_tree(self):
-        TreeWindow(self, zipper.get_last_tree_text())
-
-    def show_steps(self):
-        StepsWindow(self)
-
-    def compress_file(self):
-        path = filedialog.askopenfilename(title="Select a file to compress")
-        if not path:
-            return
-        try:
-            result = zipper.compress_file(path)
-        except Exception as exc:
-            messagebox.showerror("Compression failed", str(exc))
-            self.log(f"FAILED to compress {os.path.basename(path)}: {exc}")
-            return
-
-        self.tree_button.configure(state="normal")
-        self.log(
-            "Compressed {} -> {} ({:,} -> {:,} bytes, {:.1f}% saved)".format(
-                os.path.basename(path),
-                os.path.basename(result["output_path"]),
-                result["original_size"], result["compressed_size"],
-                result["ratio_percent"],
+        tabs_frame = ctk.CTkFrame(nav, fg_color="transparent")
+        tabs_frame.pack(side="left")
+        for key, label in [("dashboard", "Dashboard"),
+                            ("compress", "Compress / Decompress"),
+                            ("tree", "Tree Visualizer")]:
+            btn = ctk.CTkButton(
+                tabs_frame, text=label, fg_color="transparent",
+                hover_color=theme.CARD_BG_LIGHT, text_color=theme.TEXT_SECONDARY,
+                font=theme.font(12, "bold"), corner_radius=8, height=34,
+                command=lambda k=key: self.show_page(k),
             )
-        )
-        messagebox.showinfo(
-            "Compression complete",
-            "Saved to:\n{}\n\nOriginal:   {:,} bytes\nCompressed: {:,} bytes\nSaved:      {:.1f}%".format(
-                result["output_path"], result["original_size"],
-                result["compressed_size"], result["ratio_percent"],
-            ),
-        )
+            btn.pack(side="left", padx=4)
+            self.nav_buttons[key] = btn
 
-    def decompress_file(self):
-        path = filedialog.askopenfilename(
-            title="Select a .huf file to decompress",
-            filetypes=(("Huffman archives", "*.huf"), ("all files", "*.*")),
-        )
-        if not path:
-            return
-        try:
-            result = zipper.decompress_file(path)
-        except Exception as exc:
-            messagebox.showerror("Decompression failed", str(exc))
-            self.log(f"FAILED to decompress {os.path.basename(path)}: {exc}")
-            return
+    def show_page(self, name):
+        for key, btn in self.nav_buttons.items():
+            active = key == name
+            btn.configure(text_color=theme.CYAN if active else theme.TEXT_SECONDARY,
+                          fg_color=theme.CARD_BG_LIGHT if active else "transparent")
+        self.pages[name].tkraise()
+        on_show = getattr(self.pages[name], "on_show", None)
+        if on_show:
+            on_show()
 
-        self.tree_button.configure(state="normal")
-        self.log(
-            "Decompressed {} -> {} ({:,} bytes)".format(
-                os.path.basename(path),
-                os.path.basename(result["output_path"]),
-                result["output_size"],
-            )
-        )
-        messagebox.showinfo(
-            "Decompression complete",
-            "Saved to:\n{}\n\nSize: {:,} bytes".format(
-                result["output_path"], result["output_size"],
-            ),
+    def enable_tree_page(self, status_text):
+        """Called after a compress/decompress so the Tree page's status
+        hint reflects that a real tree is now available, without forcing
+        a switch to that tab."""
+        self.pages["tree"].status_label.configure(
+            text=f"Ready: {status_text} (use 'Visualize my last file')",
+            text_color=theme.TEXT_MUTED,
         )
 
 
