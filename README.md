@@ -144,25 +144,7 @@ merge order, and that the console log reflects real compression numbers.
 
 ---
 
-## 4. What changed from your original code, and why
-
-Your `heaps.py` logic was already correct — it's carried over almost
-unchanged (as `heap.py`), just documented. Everything below lived in
-`app.py` / `compressor.py`:
-
-| Bug in the original | Why it mattered | Fix |
-|---|---|---|
-| `calcFrequency()` set a character's *first* occurrence to `0` instead of `1` | Every stored frequency was one less than the real count — didn't crash anything, but made the tree slightly non-optimal | `build_frequency_table()` uses `freq.get(byte, 0) + 1` |
-| `binaryfileText.rstrip()` before compressing | Silently drops trailing whitespace/newline-like bytes — lossy for text, outright corrupts many binary files | Removed entirely; nothing is stripped, so every file round-trips exactly |
-| No handling for a file with only **one** unique byte value | A single-leaf tree gets an empty string `""` as its code, which breaks both encoding and decoding | `build_huffman_tree()` wraps the lone leaf under a dummy parent so it gets a real 1-bit code |
-| Code table written as `str(dict)` and read back with `eval()` | `eval()` on bytes read from a file will run arbitrary Python code if that file is ever corrupted or crafted maliciously — worth remembering generally, especially for CTF/forensics-style input handling | Header is now a fixed binary layout (`struct`-packed symbol/code-length/code-bits), parsed without ever executing anything |
-| GUI only accepted `.txt` in, `.bin` out, and needed image files (`imgs/*.gif`, `.png`, `.ico`) that weren't included | Not really a "zipper" if it only works on one file type, and the app couldn't even launch without missing assets | `gui.py` accepts any file, uses `.huf` as its own format extension, and needs no external image files |
-| No error handling in the GUI | Decompressing a bad file just failed silently | Both GUI buttons now show a real error dialog via `messagebox.showerror` |
-| Original `.bin` files couldn't remember their real extension | Decompressing `photo.png` → `photo.bin` → back would leave you with a bare `photo`, extension lost | `.huf` files store the original extension in their header, so `decompress` writes `..._decompressed.png` automatically |
-
----
-
-## 5. The `.huf` file format
+## 4. The `.huf` file format
 
 ```
 4 bytes    magic header, b"HUFZ"
@@ -194,7 +176,7 @@ same reason — they're closer to random-looking at the byte level.
 
 ---
 
-## 6. Where this could go next (roadmap)
+## 5. Where this could go next (roadmap)
 
 Roughly in order of how much they'd add for how much effort:
 
