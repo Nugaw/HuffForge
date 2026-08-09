@@ -1,15 +1,18 @@
 """
 Shared Canvas drawing code for the tree/step visualizer on the Tree
 Visualizer page. Colors and fonts come from theme.py so this stays
-visually consistent with the rest of the app rather than picking its
-own palette.
+visually consistent with the rest of the app.
 """
 
 import theme
 
-LEAF_W = 84
-LEVEL_H = 92
-TOP_MARGIN = 40
+LEAF_W = 130
+LEVEL_H = 130
+TOP_MARGIN = 50
+
+LEAF_HALF_W, LEAF_HALF_H = 40, 26
+NODE_RADIUS = 32
+EDGE_LABEL_RADIUS = 12
 
 
 def format_label(symbol) -> str:
@@ -38,26 +41,27 @@ def tree_depth(node) -> int:
 def _draw_node(canvas, node, x, y, unit_w, highlight, show_edge_labels):
     if node.is_leaf():
         canvas.create_rectangle(
-            x - 29, y - 19, x + 29, y + 19,
+            x - LEAF_HALF_W, y - LEAF_HALF_H, x + LEAF_HALF_W, y + LEAF_HALF_H,
             fill=theme.CARD_BG_LIGHT, outline=theme.CYAN, width=2,
         )
-        canvas.create_text(x, y - 5, text=format_label(node.symbol),
-                            font=(theme.SANS, 12, "bold"), fill=theme.TEXT_PRIMARY)
-        canvas.create_text(x, y + 10, text=str(node.freq),
-                            font=(theme.SANS, 8), fill=theme.TEXT_MUTED)
+        canvas.create_text(x, y - 8, text=format_label(node.symbol),
+                            font=theme.canvas_font(14, "bold"), fill=theme.TEXT_PRIMARY)
+        canvas.create_text(x, y + 13, text=str(node.freq),
+                            font=theme.canvas_font(10), fill=theme.TEXT_MUTED)
         return
 
     fill = theme.CARD_BG_LIGHT
     outline = theme.GREEN if highlight else theme.PURPLE
     text_color = theme.GREEN if highlight else theme.TEXT_PRIMARY
     ring_width = 3 if highlight else 2
-    canvas.create_oval(x - 24, y - 24, x + 24, y + 24,
+    r = NODE_RADIUS
+    canvas.create_oval(x - r, y - r, x + r, y + r,
                         fill=fill, outline=outline, width=ring_width)
-    canvas.create_text(x, y, text=str(node.freq), font=(theme.SANS, 10, "bold"),
+    canvas.create_text(x, y, text=str(node.freq), font=theme.canvas_font(12, "bold"),
                         fill=text_color)
     if highlight:
-        canvas.create_text(x, y - 36, text="merged",
-                            font=(theme.SANS, 8, "italic"), fill=theme.GREEN)
+        canvas.create_text(x, y - r - 14, text="merged",
+                            font=theme.canvas_font(9, "italic"), fill=theme.GREEN)
 
     children = [(bit, c) for bit, c in (("0", node.left), ("1", node.right)) if c is not None]
     counts = [leaf_count(c) for _, c in children]
@@ -67,15 +71,16 @@ def _draw_node(canvas, node, x, y, unit_w, highlight, show_edge_labels):
     for (bit, child), count in zip(children, counts):
         child_w = unit_w * (count / total)
         child_x = start_x + cursor + child_w / 2
-        top_y, bottom_y = y + 24, y + LEVEL_H - 20
+        top_y, bottom_y = y + r, y + LEVEL_H - LEAF_HALF_H - 6
         canvas.create_line(x, top_y, child_x, bottom_y, fill=theme.BORDER_LIGHT, width=2)
         if show_edge_labels:
             mid_x, mid_y = (x + child_x) / 2, (top_y + bottom_y) / 2
             label_color = theme.CYAN if bit == "0" else theme.GREEN
-            canvas.create_oval(mid_x - 9, mid_y - 9, mid_x + 9, mid_y + 9,
+            lr = EDGE_LABEL_RADIUS
+            canvas.create_oval(mid_x - lr, mid_y - lr, mid_x + lr, mid_y + lr,
                                 fill=theme.BG, outline=theme.BORDER_LIGHT)
             canvas.create_text(mid_x, mid_y, text=bit,
-                                font=(theme.SANS, 8, "bold"), fill=label_color)
+                                font=theme.canvas_font(10, "bold"), fill=label_color)
         _draw_node(canvas, child, child_x, y + LEVEL_H, child_w, False, show_edge_labels)
         cursor += child_w
 
@@ -94,12 +99,12 @@ def draw_forest(canvas, forest, merged_node=None, show_edge_labels=True):
         return 0, 0
 
     counts = [leaf_count(n) for n in forest]
-    total_width = max(sum(counts) * LEAF_W, 400)
+    total_width = max(sum(counts) * LEAF_W, 500)
     max_depth = max((tree_depth(n) for n in forest), default=1)
-    total_height = TOP_MARGIN + max_depth * LEVEL_H + 30
+    total_height = TOP_MARGIN + max_depth * LEVEL_H + 40
     canvas.configure(scrollregion=(0, 0, total_width, total_height))
 
-    x = 20
+    x = 30
     for node, count in zip(forest, counts):
         w = count * LEAF_W
         center = x + w / 2

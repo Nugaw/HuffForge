@@ -71,22 +71,22 @@ class DashboardPage(ctk.CTkFrame):
 
         ctk.CTkLabel(
             wrapper, text="  DATA STRUCTURES & ALGORITHMS PROJECT  ",
-            font=theme.font(10, "bold"), text_color=theme.CYAN,
+            font=theme.font(11, "bold"), text_color=theme.CYAN,
             fg_color=theme.CARD_BG, corner_radius=12,
-        ).pack(pady=(6, 22))
+        ).pack(pady=(6, 26))
 
         ctk.CTkLabel(wrapper, text="Compress & Visualize",
-                     font=theme.font(32, "bold"), text_color=theme.TEXT_PRIMARY).pack()
+                     font=theme.font(38, "bold"), text_color=theme.TEXT_PRIMARY).pack()
         ctk.CTkLabel(wrapper, text="with Huffman Coding",
-                     font=theme.font(32, "bold"), text_color=theme.CYAN).pack(pady=(0, 16))
+                     font=theme.font(38, "bold"), text_color=theme.CYAN).pack(pady=(0, 20))
 
         ctk.CTkLabel(
             wrapper,
             text="An interactive simulator for Huffman's optimal prefix coding "
                  "algorithm. Reduce file sizes losslessly while watching the\n"
                  "greedy, queue-based tree construction happen.",
-            font=theme.font(13), text_color=theme.TEXT_SECONDARY, justify="center",
-        ).pack(pady=(0, 30))
+            font=theme.font(14), text_color=theme.TEXT_SECONDARY, justify="center",
+        ).pack(pady=(0, 36))
 
         cards = ctk.CTkFrame(wrapper, fg_color="transparent")
         cards.pack(pady=(0, 34))
@@ -123,39 +123,40 @@ class DashboardPage(ctk.CTkFrame):
              "A min-heap priority queue guarantees an optimal tree every time."),
         ]):
             block = ctk.CTkFrame(features, fg_color="transparent")
-            block.grid(row=0, column=col, sticky="nw", padx=(0 if col == 0 else 30, 0))
-            ctk.CTkLabel(block, text=title, font=theme.font(10, "bold"),
+            block.grid(row=0, column=col, sticky="nw", padx=(0 if col == 0 else 36, 0))
+            ctk.CTkLabel(block, text=title, font=theme.font(11, "bold"),
                          text_color=theme.CYAN, anchor="w").pack(fill="x")
-            ctk.CTkLabel(block, text=body, font=theme.font(11), wraplength=260,
+            ctk.CTkLabel(block, text=body, font=theme.font(12), wraplength=290,
                          text_color=theme.TEXT_SECONDARY, justify="left", anchor="w"
-                         ).pack(fill="x", pady=(4, 0))
+                         ).pack(fill="x", pady=(5, 0))
 
     def _feature_card(self, parent, col, icon, icon_color, title, body,
                        button_text, button_color, button_hover, button_text_color,
                        target, bordered=False):
-        card = _card(parent, width=360, height=240,
+        card = _card(parent, width=460, height=320,
                      border_width=1 if bordered else 0,
                      border_color=theme.CYAN_DIM if bordered else None)
-        card.grid(row=0, column=col, padx=12)
+        card.grid(row=0, column=col, padx=16)
         card.grid_propagate(False)
 
-        ctk.CTkLabel(card, text=icon, font=theme.font(20), text_color=icon_color,
-                     fg_color=theme.CARD_BG_LIGHT, corner_radius=10,
-                     width=46, height=46).place(x=22, y=20)
+        ctk.CTkLabel(card, text=icon, font=theme.font(24), text_color=icon_color,
+                     fg_color=theme.CARD_BG_LIGHT, corner_radius=12,
+                     width=56, height=56).place(x=26, y=26)
 
-        ctk.CTkLabel(card, text=title, font=theme.font(16, "bold"),
-                     text_color=theme.TEXT_PRIMARY, anchor="w"
-                     ).place(x=22, y=80)
-        ctk.CTkLabel(card, text=body, font=theme.font(11), wraplength=310,
+        ctk.CTkLabel(card, text=title, font=theme.font(19, "bold"),
+                     text_color=theme.TEXT_PRIMARY, anchor="w",
+                     wraplength=400, justify="left"
+                     ).place(x=26, y=98)
+        ctk.CTkLabel(card, text=body, font=theme.font(13), wraplength=400,
                      text_color=theme.TEXT_SECONDARY, justify="left", anchor="nw",
-                     width=310, height=60
-                     ).place(x=22, y=112)
+                     width=400, height=90
+                     ).place(x=26, y=140)
 
         ctk.CTkButton(card, text=button_text, fg_color=button_color,
                       hover_color=button_hover, text_color=button_text_color,
-                      font=theme.font(12, "bold"), height=36,
+                      font=theme.font(13, "bold"), height=42,
                       command=lambda: self.app.show_page(target)
-                      ).place(x=22, y=188)
+                      ).place(x=26, y=250)
 
 
 # ---------------------------------------------------------------------------
@@ -182,9 +183,9 @@ class CompressPage(ctk.CTkFrame):
         _section_label(mode_card, "OPERATION MODE").pack(anchor="w", padx=18, pady=(14, 6))
         self.mode_switch = ctk.CTkSegmentedButton(
             mode_card, values=["Compress Mode", "Decompress Mode"],
-            font=theme.font(12, "bold"), selected_color=theme.CYAN,
+            font=theme.font(13, "bold"), selected_color=theme.CYAN,
             selected_hover_color=theme.CYAN_HOVER, unselected_color=theme.CARD_BG_LIGHT,
-            command=self._on_mode_change, height=38,
+            command=self._on_mode_change, height=46,
         )
         self.mode_switch.set("Compress Mode")
         self.mode_switch.pack(fill="x", padx=18, pady=(0, 18))
@@ -215,9 +216,9 @@ class CompressPage(ctk.CTkFrame):
         ctk.CTkLabel(log_header, text=" CONSOLE STEPS LOG", font=theme.font(11, "bold"),
                      text_color=theme.TEXT_SECONDARY).pack(side="left")
 
-        self.console = tk.Text(log_card, height=10, bg="#080b12", fg=theme.TEXT_SECONDARY,
+        self.console = tk.Text(log_card, height=11, bg="#080b12", fg=theme.TEXT_SECONDARY,
                                 insertbackground=theme.TEXT_SECONDARY, relief="flat",
-                                font=(theme.MONO, 10), wrap="none", padx=12, pady=8)
+                                font=theme.canvas_font(12), wrap="none", padx=14, pady=10)
         self.console.tag_configure("sys", foreground=theme.TEXT_PRIMARY)
         self.console.tag_configure("algo", foreground=theme.CYAN)
         self.console.tag_configure("queue", foreground=theme.GREEN)
@@ -244,15 +245,15 @@ class CompressPage(ctk.CTkFrame):
         c.create_rectangle(6, 6, w - 6, h - 6, outline=theme.CYAN_DIM,
                             dash=(6, 4), width=2)
         icon = "\u2601" if self.mode == "compress" else "\U0001F4E4"
-        c.create_text(w / 2, h / 2 - 40, text=icon, font=(theme.SANS, 30),
+        c.create_text(w / 2, h / 2 - 64, text=icon, font=theme.canvas_font(38),
                       fill=theme.CYAN)
         if self.mode == "compress":
             main_text, sub_text = "Drop your file here", "Any file type - click to browse"
         else:
             main_text, sub_text = "Drop your .huf archive here", "Click to browse for a .huf file"
-        c.create_text(w / 2, h / 2, text=main_text, font=(theme.SANS, 14, "bold"),
+        c.create_text(w / 2, h / 2, text=main_text, font=theme.canvas_font(17, "bold"),
                       fill=theme.TEXT_PRIMARY)
-        c.create_text(w / 2, h / 2 + 20, text=sub_text, font=(theme.SANS, 10),
+        c.create_text(w / 2, h / 2 + 32, text=sub_text, font=theme.canvas_font(12),
                       fill=theme.TEXT_MUTED)
 
     # -- metrics panel --------------------------------------------------
@@ -279,33 +280,34 @@ class CompressPage(ctk.CTkFrame):
              ("Status", "ratio")]
         )
         for r, (label, key) in enumerate(row_defs):
-            ctk.CTkLabel(rows, text=label, font=theme.font(11),
+            ctk.CTkLabel(rows, text=label, font=theme.font(12),
                          text_color=theme.TEXT_SECONDARY, anchor="w"
-                         ).grid(row=r, column=0, sticky="w", pady=6)
-            value_label = ctk.CTkLabel(rows, text="--", font=theme.font(12, "bold"),
+                         ).grid(row=r, column=0, sticky="w", pady=8)
+            value_label = ctk.CTkLabel(rows, text="--", font=theme.font(14, "bold"),
                                         text_color=theme.TEXT_PRIMARY, anchor="e")
-            value_label.grid(row=r, column=1, sticky="e", padx=(30, 0), pady=6)
+            value_label.grid(row=r, column=1, sticky="e", padx=(30, 0), pady=8)
             self.metric_labels[key] = value_label
 
         if self.mode == "compress":
-            self.ring_canvas = tk.Canvas(body, width=150, height=150,
+            self.ring_canvas = tk.Canvas(body, width=180, height=180,
                                          bg=theme.CARD_BG, highlightthickness=0)
-            self.ring_canvas.grid(row=0, column=1, padx=(20, 0), sticky="n")
+            self.ring_canvas.grid(row=0, column=1, padx=(24, 0), sticky="n")
             self._draw_ring(0)
         else:
             self.ring_canvas = None
 
         actions = ctk.CTkFrame(body, fg_color="transparent")
-        actions.grid(row=1, column=0, columnspan=2, sticky="w", pady=(20, 10))
+        actions.grid(row=1, column=0, columnspan=2, sticky="w", pady=(24, 10))
         self.save_as_btn = ctk.CTkButton(
             actions, text="Save output as...", fg_color=theme.CYAN,
             hover_color=theme.CYAN_HOVER, text_color="#04212b",
-            font=theme.font(12, "bold"), state="disabled", command=self.save_output_as,
+            font=theme.font(13, "bold"), height=38,
+            state="disabled", command=self.save_output_as,
         )
         self.save_as_btn.pack(side="left", padx=(0, 8))
         ctk.CTkButton(actions, text="Clear", fg_color="transparent",
                       border_width=1, border_color=theme.BORDER_LIGHT,
-                      text_color=theme.TEXT_SECONDARY, font=theme.font(12),
+                      text_color=theme.TEXT_SECONDARY, font=theme.font(13), height=38,
                       command=self._reset_metrics).pack(side="left")
 
     def _reset_metrics(self):
@@ -325,16 +327,16 @@ class CompressPage(ctk.CTkFrame):
     def _draw_ring(self, percent):
         c = self.ring_canvas
         c.delete("all")
-        cx, cy, r, w = 75, 75, 58, 12
+        cx, cy, r, w = 90, 90, 70, 14
         c.create_oval(cx - r, cy - r, cx + r, cy + r, outline=theme.BORDER_LIGHT, width=w)
         clipped = max(0.0, min(percent, 100.0))
         if clipped > 0:
             extent = -clipped * 3.6
             c.create_arc(cx - r, cy - r, cx + r, cy + r, start=90, extent=extent,
                          style="arc", outline=theme.CYAN, width=w)
-        c.create_text(cx, cy - 6, text=f"{percent:.1f}%", font=(theme.SANS, 17, "bold"),
+        c.create_text(cx, cy - 8, text=f"{percent:.1f}%", font=theme.canvas_font(20, "bold"),
                       fill=theme.TEXT_PRIMARY)
-        c.create_text(cx, cy + 16, text="SPACE SAVED", font=(theme.SANS, 8, "bold"),
+        c.create_text(cx, cy + 18, text="SPACE SAVED", font=theme.canvas_font(9, "bold"),
                       fill=theme.TEXT_SECONDARY)
 
     # -- console log --------------------------------------------------
@@ -461,22 +463,22 @@ class TreePage(ctk.CTkFrame):
                      font=theme.font(11), text_color=theme.TEXT_SECONDARY).pack(anchor="w")
 
         row2 = ctk.CTkFrame(controls, fg_color="transparent")
-        row2.pack(fill="x", padx=16, pady=(0, 14))
-        self.entry = ctk.CTkEntry(row2, width=380, height=32,
+        row2.pack(fill="x", padx=16, pady=(0, 16))
+        self.entry = ctk.CTkEntry(row2, width=480, height=42, font=theme.font(13),
                                    fg_color=theme.CARD_BG_LIGHT, border_color=theme.BORDER_LIGHT)
         self.entry.insert(0, TEXTBOOK_EXAMPLE)
-        self.entry.pack(side="left", padx=(0, 6))
-        ctk.CTkButton(row2, text="Build", width=90, height=32,
+        self.entry.pack(side="left", padx=(0, 8))
+        ctk.CTkButton(row2, text="Build", width=100, height=42,
                       fg_color=theme.CYAN, hover_color=theme.CYAN_HOVER,
-                      text_color="#04212b", font=theme.font(12, "bold"),
+                      text_color="#04212b", font=theme.font(13, "bold"),
                       command=self.build_from_entry).pack(side="left", padx=4)
-        ctk.CTkButton(row2, text="Textbook example", width=140, height=32,
+        ctk.CTkButton(row2, text="Textbook example", width=160, height=42,
                       fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
-                      text_color=theme.TEXT_PRIMARY, font=theme.font(12),
+                      text_color=theme.TEXT_PRIMARY, font=theme.font(13),
                       command=self.load_textbook_example).pack(side="left", padx=4)
-        ctk.CTkButton(row2, text="Visualize my last file", width=170, height=32,
+        ctk.CTkButton(row2, text="Visualize my last file", width=190, height=42,
                       fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
-                      text_color=theme.TEXT_PRIMARY, font=theme.font(12),
+                      text_color=theme.TEXT_PRIMARY, font=theme.font(13),
                       command=self.build_from_last_file).pack(side="left", padx=4)
 
         # -- canvas -------------------------------------------------------
@@ -487,29 +489,33 @@ class TreePage(ctk.CTkFrame):
         nav = ctk.CTkFrame(wrapper, fg_color="transparent")
         nav.pack(fill="x", pady=(10, 4))
 
-        self.back_btn = ctk.CTkButton(nav, text="< Back", width=80, height=30,
+        self.back_btn = ctk.CTkButton(nav, text="< Back", width=96, height=38,
+                                       font=theme.font(12),
                                        fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
                                        text_color=theme.TEXT_PRIMARY, state="disabled",
                                        command=self.go_back)
         self.back_btn.pack(side="left", padx=4)
 
-        self.play_btn = ctk.CTkButton(nav, text="Play", width=80, height=30,
+        self.play_btn = ctk.CTkButton(nav, text="Play", width=96, height=38,
+                                       font=theme.font(12),
                                        fg_color=theme.CYAN_DIM, hover_color=theme.CYAN_HOVER,
                                        text_color=theme.TEXT_PRIMARY, state="disabled",
                                        command=self.toggle_play)
         self.play_btn.pack(side="left", padx=4)
 
-        self.next_btn = ctk.CTkButton(nav, text="Next >", width=80, height=30,
+        self.next_btn = ctk.CTkButton(nav, text="Next >", width=96, height=38,
+                                       font=theme.font(12),
                                        fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
                                        text_color=theme.TEXT_PRIMARY, state="disabled",
                                        command=self.go_next)
         self.next_btn.pack(side="left", padx=4)
 
-        self.step_label = ctk.CTkLabel(nav, text="Step 0 of 0", width=100,
-                                        font=theme.font(11), text_color=theme.TEXT_SECONDARY)
-        self.step_label.pack(side="left", padx=(12, 6))
+        self.step_label = ctk.CTkLabel(nav, text="Step 0 of 0", width=110,
+                                        font=theme.font(12), text_color=theme.TEXT_SECONDARY)
+        self.step_label.pack(side="left", padx=(14, 8))
 
-        self.slider = ctk.CTkSlider(nav, from_=0, to=1, number_of_steps=1, width=260,
+        self.slider = ctk.CTkSlider(nav, from_=0, to=1, number_of_steps=1, width=300,
+                                     height=20,
                                      progress_color=theme.CYAN, button_color=theme.CYAN,
                                      button_hover_color=theme.CYAN_HOVER,
                                      command=self._on_slider, state="disabled")
@@ -518,9 +524,9 @@ class TreePage(ctk.CTkFrame):
 
         self.caption = ctk.CTkLabel(wrapper, text="Load an example above, or compress a "
                                                     "file on the previous page first.",
-                                     font=theme.font(12), text_color=theme.TEXT_SECONDARY,
-                                     wraplength=900)
-        self.caption.pack(fill="x", pady=(6, 10))
+                                     font=theme.font(13), text_color=theme.TEXT_SECONDARY,
+                                     wraplength=1000)
+        self.caption.pack(fill="x", pady=(8, 12))
 
         # -- codes table ----------------------------------------------
         table_wrap = _card(wrapper)
@@ -599,11 +605,11 @@ class TreePage(ctk.CTkFrame):
         for i, (symbol, code) in enumerate(items):
             r, c = divmod(i, per_row)
             pill = ctk.CTkLabel(
-                self.codes_frame, text=f"  {symbol} = {code}  ",
-                font=(theme.MONO, 11, "bold"), text_color=theme.GREEN,
-                fg_color=theme.CARD_BG_LIGHT, corner_radius=8,
+                self.codes_frame, text=f"   {symbol} = {code}   ",
+                font=theme.mono_font(13, "bold"), text_color=theme.GREEN,
+                fg_color=theme.CARD_BG_LIGHT, corner_radius=8, height=34,
             )
-            pill.grid(row=r, column=c, padx=4, pady=4, sticky="w")
+            pill.grid(row=r, column=c, padx=5, pady=5, sticky="w")
 
     # -- navigation ------------------------------------------------------
 
@@ -686,8 +692,8 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Huffman Studio")
-        self.geometry("1200x820")
-        self.minsize(960, 680)
+        self.geometry("1360x900")
+        self.minsize(1120, 720)
         self.configure(fg_color=theme.BG)
 
         self.nav_buttons = {}

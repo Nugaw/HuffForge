@@ -36,10 +36,25 @@ TEXT_MUTED = "#64748b"
 SANS = "Segoe UI"   # falls back to the platform default where unavailable
 MONO = "Courier"    # one of Tk's built-in cross-platform generic families
 
+# Everything below was originally sized for a denser, web-style layout and
+# read as too small/cramped on a desktop app. This one multiplier scales
+# every CTkFont produced by font()/mono_font() at once - bump it here
+# instead of hunting down every call site.
+FONT_SCALE = 1.3
+
 
 def font(size, weight="normal", family=SANS):
-    return ctk.CTkFont(family=family, size=size, weight=weight)
+    return ctk.CTkFont(family=family, size=round(size * FONT_SCALE), weight=weight)
 
 
 def mono_font(size, weight="normal"):
-    return (MONO, size, weight) if weight != "normal" else (MONO, size)
+    scaled = round(size * FONT_SCALE)
+    return (MONO, scaled, weight) if weight != "normal" else (MONO, scaled)
+
+
+def canvas_font(size, weight="normal", family=SANS):
+    """For raw tkinter Canvas/Text widgets, which take a plain tuple
+    instead of a CTkFont - scaled the same way so Canvas-drawn text
+    (the tree nodes, the drop zone, the savings gauge) grows to match."""
+    scaled = round(size * FONT_SCALE)
+    return (family, scaled, weight) if weight != "normal" else (family, scaled)
