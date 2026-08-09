@@ -17,13 +17,16 @@ structure you built.
 huffman_zipper/
 ├── heap.py                  # your min-heap (priority queue), documented
 ├── huffman_tree.py          # Node class, tree building, codes, tree text-view
-├── huffman_steps.py         # step-by-step tree builder used by the GUI visualizer
+├── huffman_steps.py         # step-by-step tree builder used by the visualizer
 ├── huffman_compressor.py    # file format + compress/decompress engine
-├── cli.py                   # command-line interface
-├── gui.py                   # customtkinter dashboard + tree/steps windows
-├── sample.txt                # a file to try compression on immediately
+├── theme.py                  # shared dark color palette + fonts for the GUI
+├── tree_canvas.py             # shared tree-drawing code (Tree page + step playback)
+├── console_log.py             # generates the Compress page's console log lines
+├── cli.py                    # command-line interface
+├── gui.py                    # Huffman Studio - the tabbed dark-themed GUI
+├── sample.txt                 # a file to try compression on immediately
 ├── tests/
-│   └── test_huffman.py      # round-trip and step-builder correctness tests
+│   └── test_huffman.py       # round-trip, step-builder, and console-log tests
 ├── requirements.txt
 ├── .gitignore
 └── README.md
@@ -34,11 +37,14 @@ priority queue. `huffman_tree.py` uses it to build a Huffman **binary
 tree** out of byte frequencies, then walks that tree to generate codes
 (and, on the way back, to decode them) - this is what actually runs
 during compression. `huffman_steps.py` builds the *same kind* of tree a
-different way (the classic "two queue" method) purely so the GUI's
-"How Huffman Works" window can record and replay it one merge at a time.
+different way (the classic "two queue" method) purely so the GUI's Tree
+Visualizer can record and replay construction one merge at a time.
 `huffman_compressor.py` wraps the real tree logic with file I/O and a
-binary file format. `cli.py` and `gui.py` are two different front ends
-for that same engine.
+binary file format. `theme.py`, `tree_canvas.py`, and `console_log.py`
+are all GUI support modules - colors/fonts, tree drawing, and log-line
+generation, respectively - kept separate from `gui.py` so the page
+layout code doesn't get tangled up with drawing/styling logic. `cli.py`
+and `gui.py` are two different front ends for the same underlying engine.
 
 ---
 
@@ -98,28 +104,32 @@ python cli.py decompress myphoto_compressed.huf -o restored.png
 python gui.py
 ```
 
-The main window is a small dashboard:
+**Huffman Studio** is one window with a top nav bar switching between
+three pages (no more separate popup windows):
 
-- **Compress a file** / **Decompress a .huf file** — same behavior as the
-  CLI. Compressing shows the resulting size and space saved; decompressing
-  writes `<name>_decompressed.<ext>` next to the original by default.
-- **View Huffman Tree** — opens the final tree for whichever file you just
-  processed in its own window (the GUI equivalent of the CLI's
-  `--visualize` flag). Disabled until you've compressed or decompressed
-  at least one file.
-- **How Huffman Works** — opens a separate window that builds a Huffman
-  tree one merge at a time, with Back/Next buttons, drawn as the
-  "row of boxes" you'd see in a textbook walkthrough. Two ways to feed it
-  data:
-    - type your own `symbol:freq` pairs (a "Load textbook example" button
-      fills in a classic 10-node example to try first), or
-    - click "Visualize my last compressed file" to see the same process
-      run on the 12 most frequent bytes from whatever you last compressed
-      (capped at 12 so the boxes stay readable — the real compression
-      still uses every byte, this view is just for following along)
-- **Activity panel** — a running, timestamped log of every file you've
-  compressed/decompressed this session, with sizes and ratios.
-- **Dark mode switch**.
+- **Dashboard** — an overview with two entry points ("Launch Encoder
+  Tool" and "Visualize Algorithm") plus a short explanation of what makes
+  Huffman coding work, for context.
+- **Compress / Decompress** — toggle between Compress Mode and
+  Decompress Mode, click the dashed drop zone to browse for a file (any
+  file type, or a `.huf` archive in decompress mode), and see real
+  results: original/compressed size, a live "space saved" progress ring,
+  a "Save output as..." button, and a **console log** that narrates what
+  actually happened during that run (frequency table size, each merge,
+  final size) - generated from the real data, not placeholder text.
+- **Tree Visualizer** — shows the completed Huffman tree by default
+  (matching the closed-form textbook diagram: leaves as bordered cards,
+  each edge labeled with its 0/1 bit, the root highlighted), plus a
+  Back/Next/Play/slider row if you want to rewind and watch it get built
+  merge by merge. Feed it data by typing your own `symbol:freq` pairs,
+  loading the classic textbook example, or clicking "Visualize my last
+  file" to use the 12 most frequent bytes from whatever you just
+  compressed. A **prefix codes table** underneath lists every symbol's
+  final code.
+
+Note: the "drop zone" is a styled click target (opens the normal file
+picker), not literal OS drag-and-drop - that would need an extra
+third-party package (`tkinterdnd2`) that isn't in `requirements.txt`.
 
 ### Tests
 
@@ -129,7 +139,8 @@ python tests/test_huffman.py
 
 Covers a normal text round-trip, a single-repeated-byte file (an edge
 case that crashed the original code), arbitrary binary data, extension
-restoration, and rejecting a corrupted/non-`.huf` file.
+restoration, rejecting a corrupted/non-`.huf` file, the step-builder's
+merge order, and that the console log reflects real compression numbers.
 
 ---
 
