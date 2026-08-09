@@ -147,8 +147,9 @@ class DashboardPage(ctk.CTkFrame):
                      text_color=theme.TEXT_PRIMARY, anchor="w"
                      ).place(x=22, y=80)
         ctk.CTkLabel(card, text=body, font=theme.font(11), wraplength=310,
-                     text_color=theme.TEXT_SECONDARY, justify="left", anchor="nw"
-                     ).place(x=22, y=112, width=310, height=60)
+                     text_color=theme.TEXT_SECONDARY, justify="left", anchor="nw",
+                     width=310, height=60
+                     ).place(x=22, y=112)
 
         ctk.CTkButton(card, text=button_text, fg_color=button_color,
                       hover_color=button_hover, text_color=button_text_color,
