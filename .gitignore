@@ -1,6 +1,21 @@
-.txt
-.huf
+# Virtual environment
+venv/
+.venv/
+env/
 
-
+# Python bytecode caches
 __pycache__/
 *.pyc
+*.pyo
+
+# Files this tool generates while you're testing it
+*.huf
+*_decompressed.*
+
+# Editor/IDE folders
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
