@@ -67,35 +67,43 @@ class DashboardPage(ctk.CTkFrame):
         self.app = app
 
         wrapper = ctk.CTkFrame(self, fg_color="transparent")
-        wrapper.pack(expand=True, fill="both", padx=40, pady=30)
+        wrapper.pack(expand=True, fill="both", padx=40, pady=20)
 
+        # --- Centered Intro Section ---
         ctk.CTkLabel(
             wrapper, text="  DATA STRUCTURES & ALGORITHMS PROJECT  ",
-            font=theme.font(11, "bold"), text_color=theme.CYAN,
+            font=theme.font(10, "bold"), text_color=theme.CYAN,
             fg_color=theme.CARD_BG, corner_radius=12,
-        ).pack(pady=(6, 26))
+        ).pack(anchor="center", pady=(10, 16))
 
-        ctk.CTkLabel(wrapper, text="Compress & Visualize",
-                     font=theme.font(38, "bold"), text_color=theme.TEXT_PRIMARY).pack()
-        ctk.CTkLabel(wrapper, text="with Huffman Coding",
-                     font=theme.font(38, "bold"), text_color=theme.CYAN).pack(pady=(0, 20))
+        ctk.CTkLabel(
+            wrapper, text="Compress & Visualize",
+            font=theme.font(32, "bold"), text_color=theme.TEXT_PRIMARY,
+            anchor="center"
+        ).pack(anchor="center")
+
+        ctk.CTkLabel(
+            wrapper, text="with Huffman Coding",
+            font=theme.font(32, "bold"), text_color=theme.CYAN,
+            anchor="center"
+        ).pack(anchor="center", pady=(0, 14))
 
         ctk.CTkLabel(
             wrapper,
-            text="An interactive simulator for Huffman's optimal prefix coding "
-                 "algorithm. Reduce file sizes losslessly while watching the\n"
-                 "greedy, queue-based tree construction happen.",
-            font=theme.font(14), text_color=theme.TEXT_SECONDARY, justify="center",
-        ).pack(pady=(0, 36))
+            text="An elegant, interactive simulator for Huffman's optimal prefix coding algorithm. Reduce file\n"
+                 "sizes losslessly while visualizing the greedy queue-based tree construction.",
+            font=theme.font(12), text_color=theme.TEXT_SECONDARY,
+            justify="center", anchor="center"
+        ).pack(anchor="center", pady=(0, 24))
 
+        # --- Centered Feature Cards ---
         cards = ctk.CTkFrame(wrapper, fg_color="transparent")
-        cards.pack(pady=(0, 34))
+        cards.pack(anchor="center", pady=(0, 24))
 
         self._feature_card(
             cards, col=0, icon="\U0001F4C2", icon_color=theme.GREEN,
             title="File Encoder & Decoder",
-            body="Compress any file and restore it exactly, with real "
-                 "compression metrics and a live console log.",
+            body="Upload real text files, construct the frequency dictionary, and instantly compress or decompress output binaries with dynamic metrics.",
             button_text="Launch Encoder Tool  \u2192",
             button_color=theme.GREEN, button_hover=theme.GREEN_HOVER,
             button_text_color="#062e13",
@@ -104,59 +112,73 @@ class DashboardPage(ctk.CTkFrame):
         self._feature_card(
             cards, col=1, icon="\U0001F333", icon_color=theme.CYAN,
             title="Tree Graph Visualizer",
-            body="Watch the priority queue combine weights step by step, "
-                 "rendering the binary tree with a 0/1 code for every leaf.",
+            body="Watch the priority queue combine weights live, rendering a beautiful binary tree with path codes (0 and 1) for every character leaf.",
             button_text="Visualize Algorithm  \U0001F441",
             button_color=theme.CYAN, button_hover=theme.CYAN_HOVER,
             button_text_color="#04212b",
             target="tree", bordered=True,
         )
 
+        # --- Bottom Info Blocks ---
         features = ctk.CTkFrame(wrapper, fg_color="transparent")
-        features.pack(fill="x")
+        features.pack(anchor="center")
         for col, (title, body) in enumerate([
             ("OPTIMAL PREFIX CODING",
-             "No code is a prefix of another, keeping decompression unambiguous."),
+             "No code is a prefix of another, ensuring ambiguity-free decompression."),
             ("VARIABLE-LENGTH CODES",
-             "Frequent bytes get shorter codes, yielding maximum efficiency."),
+             "Frequent characters get shorter bit codes, yielding maximum efficiency."),
             ("GREEDY CONSTRUCTION",
-             "A min-heap priority queue guarantees an optimal tree every time."),
+             "Employs a min-heap priority queue to guarantee optimal tree building."),
         ]):
             block = ctk.CTkFrame(features, fg_color="transparent")
-            block.grid(row=0, column=col, sticky="nw", padx=(0 if col == 0 else 36, 0))
-            ctk.CTkLabel(block, text=title, font=theme.font(11, "bold"),
+            block.grid(row=0, column=col, sticky="nw", padx=24)
+            ctk.CTkLabel(block, text=title, font=theme.font(10, "bold"),
                          text_color=theme.CYAN, anchor="w").pack(fill="x")
-            ctk.CTkLabel(block, text=body, font=theme.font(12), wraplength=290,
+            ctk.CTkLabel(block, text=body, font=theme.font(11), wraplength=260,
                          text_color=theme.TEXT_SECONDARY, justify="left", anchor="w"
-                         ).pack(fill="x", pady=(5, 0))
+                         ).pack(fill="x", pady=(4, 0))
 
-    def _feature_card(self, parent, col, icon, icon_color, title, body,
-                       button_text, button_color, button_hover, button_text_color,
-                       target, bordered=False):
-        card = _card(parent, width=460, height=320,
-                     border_width=1 if bordered else 0,
-                     border_color=theme.CYAN_DIM if bordered else None)
+    def _feature_card(self, parent, col, icon, icon_color, title, body, button_text, button_color, button_hover, button_text_color, target, bordered=False):
+        # Enlarged dimensions (480x390) so scaled fonts fit perfectly
+        card = _card(
+            parent, width=480, height=390,
+            border_width=1 if bordered else 0,
+            border_color=theme.CYAN_DIM if bordered else None
+        )
         card.grid(row=0, column=col, padx=16)
-        card.grid_propagate(False)
+        card.pack_propagate(False)
 
-        ctk.CTkLabel(card, text=icon, font=theme.font(24), text_color=icon_color,
-                     fg_color=theme.CARD_BG_LIGHT, corner_radius=12,
-                     width=56, height=56).place(x=26, y=26)
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="both", expand=True, padx=28, pady=24)
 
-        ctk.CTkLabel(card, text=title, font=theme.font(19, "bold"),
-                     text_color=theme.TEXT_PRIMARY, anchor="w",
-                     wraplength=400, justify="left"
-                     ).place(x=26, y=98)
-        ctk.CTkLabel(card, text=body, font=theme.font(13), wraplength=400,
-                     text_color=theme.TEXT_SECONDARY, justify="left", anchor="nw",
-                     width=400, height=90
-                     ).place(x=26, y=140)
+        # Icon badge
+        ctk.CTkLabel(
+            inner, text=icon, font=theme.font(20), text_color=icon_color,
+            fg_color=theme.CARD_BG_LIGHT, corner_radius=12, width=52, height=52
+        ).pack(anchor="w", pady=(0, 16))
 
-        ctk.CTkButton(card, text=button_text, fg_color=button_color,
-                      hover_color=button_hover, text_color=button_text_color,
-                      font=theme.font(13, "bold"), height=42,
-                      command=lambda: self.app.show_page(target)
-                      ).place(x=26, y=250)
+        # Card Title (wrapped to prevents horizontal truncation)
+        ctk.CTkLabel(
+            inner, text=title, font=theme.font(16, "bold"),
+            text_color=theme.TEXT_PRIMARY, anchor="w", justify="left",
+            wraplength=420
+        ).pack(anchor="w", pady=(0, 10))
+
+        # Description text
+        ctk.CTkLabel(
+            inner, text=body, font=theme.font(11), wraplength=420,
+            text_color=theme.TEXT_SECONDARY, justify="left", anchor="nw"
+        ).pack(anchor="w", fill="x", pady=(0, 20))
+
+        # Button
+        ctk.CTkButton(
+            inner, text=button_text, fg_color=button_color,
+            hover_color=button_hover, text_color=button_text_color,
+            font=theme.font(12, "bold"), height=42, corner_radius=10,
+            command=lambda: self.app.show_page(target)
+        ).pack(anchor="w")
+# ---------------------------------------------------------------------------
+# Compress / Decompress page
 
 
 # ---------------------------------------------------------------------------
@@ -442,52 +464,64 @@ class TreePage(ctk.CTkFrame):
         self.final_root = None
 
         wrapper = ctk.CTkFrame(self, fg_color="transparent")
-        wrapper.pack(fill="both", expand=True, padx=30, pady=24)
+        wrapper.pack(fill="both", expand=True, padx=30, pady=20)
 
-        # -- header row ------------------------------------------------
+        # -- Header Row ------------------------------------------------
         header = ctk.CTkFrame(wrapper, fg_color="transparent")
-        header.pack(fill="x", pady=(0, 6))
+        header.pack(fill="x", pady=(0, 10))
         ctk.CTkLabel(header, text="\U0001F333  Greedy Decision Tree Representation",
-                     font=theme.font(16, "bold"), text_color=theme.TEXT_PRIMARY
+                     font=theme.font(18, "bold"), text_color=theme.TEXT_PRIMARY
                      ).pack(side="left")
         self.status_label = ctk.CTkLabel(header, text="No tree loaded yet",
-                                          font=theme.font(11), text_color=theme.TEXT_MUTED)
+                                          font=theme.font(12), text_color=theme.TEXT_MUTED)
         self.status_label.pack(side="right")
 
-        # -- input controls ----------------------------------------------
+        # -- Input Controls Card ---------------------------------------
         controls = _card(wrapper)
-        controls.pack(fill="x", pady=(0, 12))
+        controls.pack(fill="x", pady=(0, 14))
+
         row1 = ctk.CTkFrame(controls, fg_color="transparent")
-        row1.pack(fill="x", padx=16, pady=(14, 6))
+        row1.pack(fill="x", padx=20, pady=(16, 8))
         ctk.CTkLabel(row1, text="Custom example (symbol:freq, comma separated):",
-                     font=theme.font(11), text_color=theme.TEXT_SECONDARY).pack(anchor="w")
+                     font=theme.font(12, "bold"), text_color=theme.TEXT_SECONDARY).pack(anchor="w")
 
+        # Row 2 uses a flexible Grid so the Entry expands proportionally
         row2 = ctk.CTkFrame(controls, fg_color="transparent")
-        row2.pack(fill="x", padx=16, pady=(0, 16))
-        self.entry = ctk.CTkEntry(row2, width=480, height=42, font=theme.font(13),
-                                   fg_color=theme.CARD_BG_LIGHT, border_color=theme.BORDER_LIGHT)
-        self.entry.insert(0, TEXTBOOK_EXAMPLE)
-        self.entry.pack(side="left", padx=(0, 8))
-        ctk.CTkButton(row2, text="Build", width=100, height=42,
-                      fg_color=theme.CYAN, hover_color=theme.CYAN_HOVER,
-                      text_color="#04212b", font=theme.font(13, "bold"),
-                      command=self.build_from_entry).pack(side="left", padx=4)
-        ctk.CTkButton(row2, text="Textbook example", width=160, height=42,
-                      fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
-                      text_color=theme.TEXT_PRIMARY, font=theme.font(13),
-                      command=self.load_textbook_example).pack(side="left", padx=4)
-        ctk.CTkButton(row2, text="Visualize my last file", width=190, height=42,
-                      fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
-                      text_color=theme.TEXT_PRIMARY, font=theme.font(13),
-                      command=self.build_from_last_file).pack(side="left", padx=4)
+        row2.pack(fill="x", padx=20, pady=(0, 18))
+        row2.grid_columnconfigure(0, weight=1)  # Entry stretches dynamically
 
-        # -- canvas -------------------------------------------------------
+        self.entry = ctk.CTkEntry(
+            row2, height=48, font=theme.font(14),
+            fg_color=theme.CARD_BG_LIGHT, border_color=theme.BORDER_LIGHT
+        )
+        self.entry.insert(0, TEXTBOOK_EXAMPLE)
+        self.entry.grid(row=0, column=0, sticky="ew", padx=(0, 12))
+
+        ctk.CTkButton(
+            row2, text="Build", height=48, font=theme.font(13, "bold"),
+            fg_color=theme.CYAN, hover_color=theme.CYAN_HOVER, text_color="#04212b",
+            command=self.build_from_entry
+        ).grid(row=0, column=1, padx=(0, 8))
+
+        ctk.CTkButton(
+            row2, text="Textbook example", height=48, font=theme.font(13),
+            fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
+            text_color=theme.TEXT_PRIMARY, command=self.load_textbook_example
+        ).grid(row=0, column=2, padx=(0, 8))
+
+        ctk.CTkButton(
+            row2, text="Visualize my last file", height=48, font=theme.font(13),
+            fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
+            text_color=theme.TEXT_PRIMARY, command=self.build_from_last_file
+        ).grid(row=0, column=3)
+
+        # -- Tree Canvas --------------------------------------------------
         self.canvas_frame, self.canvas = _scrollable_canvas(wrapper)
         self.canvas_frame.pack(fill="both", expand=True)
 
-        # -- playback controls ----------------------------------------
+        # -- Playback Controls -------------------------------------------
         nav = ctk.CTkFrame(wrapper, fg_color="transparent")
-        nav.pack(fill="x", pady=(10, 4))
+        nav.pack(fill="x", pady=(12, 4))
 
         self.back_btn = ctk.CTkButton(nav, text="< Back", width=96, height=38,
                                        font=theme.font(12),
@@ -528,14 +562,13 @@ class TreePage(ctk.CTkFrame):
                                      wraplength=1000)
         self.caption.pack(fill="x", pady=(8, 12))
 
-        # -- codes table ----------------------------------------------
+        # -- Codes Table -------------------------------------------------
         table_wrap = _card(wrapper)
         table_wrap.pack(fill="x")
         _section_label(table_wrap, "RESULTING PREFIX CODES TABLE").pack(
             anchor="w", padx=16, pady=(12, 6))
         self.codes_frame = ctk.CTkFrame(table_wrap, fg_color="transparent")
         self.codes_frame.pack(fill="x", padx=16, pady=(0, 14))
-
     def on_show(self):
         pass  # nav bar calls this; nothing extra needed on tab switch
 

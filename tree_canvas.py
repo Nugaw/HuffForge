@@ -6,13 +6,14 @@ visually consistent with the rest of the app.
 
 import theme
 
-LEAF_W = 130
-LEVEL_H = 130
+# --- Layout Constants ---
+LEAF_W = 140
+LEVEL_H = 120       # Reduced from 130 so branch lines aren't flat
 TOP_MARGIN = 50
 
-LEAF_HALF_W, LEAF_HALF_H = 40, 26
-NODE_RADIUS = 32
-EDGE_LABEL_RADIUS = 12
+LEAF_HALF_W, LEAF_HALF_H = 50, 44  # Reduced box height to avoid text clipping
+NODE_RADIUS = 40                   # Reduced circle size from 50 to 28
+EDGE_LABEL_RADIUS = 20              # Scaled down label badges
 
 
 def format_label(symbol) -> str:
@@ -39,48 +40,92 @@ def tree_depth(node) -> int:
 
 
 def _draw_node(canvas, node, x, y, unit_w, highlight, show_edge_labels):
+    # --- 1. LEAF NODE RENDERING ---
     if node.is_leaf():
+        # Outer card box
         canvas.create_rectangle(
-            x - LEAF_HALF_W, y - LEAF_HALF_H, x + LEAF_HALF_W, y + LEAF_HALF_H,
-            fill=theme.CARD_BG_LIGHT, outline=theme.CYAN, width=2,
+            x - LEAF_HALF_W, y - LEAF_HALF_H, 
+            x + LEAF_HALF_W, y + LEAF_HALF_H,
+            fill=theme.CARD_BG_LIGHT, 
+            outline=theme.CYAN, 
+            width=2,
         )
-        canvas.create_text(x, y - 8, text=format_label(node.symbol),
-                            font=theme.canvas_font(14, "bold"), fill=theme.TEXT_PRIMARY)
-        canvas.create_text(x, y + 13, text=str(node.freq),
-                            font=theme.canvas_font(10), fill=theme.TEXT_MUTED)
+        # Symbol label (Shifted higher to prevent overlapping)
+        canvas.create_text(
+            x, y - 13, 
+            text=format_label(node.symbol),
+            font=theme.canvas_font(14, "bold"), 
+            fill=theme.TEXT_PRIMARY
+        )
+        # Frequency label (Shifted lower with clean spacing)
+        canvas.create_text(
+            x, y + 13, 
+            text=f"f: {node.freq}",
+            font=theme.canvas_font(10, "bold"), 
+            fill=theme.CYAN
+        )
         return
 
+    # --- 2. INTERNAL NODE RENDERING ---
     fill = theme.CARD_BG_LIGHT
     outline = theme.GREEN if highlight else theme.PURPLE
     text_color = theme.GREEN if highlight else theme.TEXT_PRIMARY
     ring_width = 3 if highlight else 2
     r = NODE_RADIUS
-    canvas.create_oval(x - r, y - r, x + r, y + r,
-                        fill=fill, outline=outline, width=ring_width)
-    canvas.create_text(x, y, text=str(node.freq), font=theme.canvas_font(12, "bold"),
-                        fill=text_color)
-    if highlight:
-        canvas.create_text(x, y - r - 14, text="merged",
-                            font=theme.canvas_font(9, "italic"), fill=theme.GREEN)
 
+    canvas.create_oval(
+        x - r, y - r, x + r, y + r,
+        fill=fill, outline=outline, width=ring_width
+    )
+    canvas.create_text(
+        x, y, 
+        text=str(node.freq), 
+        font=theme.canvas_font(12, "bold"),
+        fill=text_color
+    )
+    
+    if highlight:
+        canvas.create_text(
+            x, y - r - 14, 
+            text="merged",
+            font=theme.canvas_font(9, "italic"), 
+            fill=theme.GREEN
+        )
+
+    # --- 3. CHILD BRANCHES & RECURSION ---
     children = [(bit, c) for bit, c in (("0", node.left), ("1", node.right)) if c is not None]
     counts = [leaf_count(c) for _, c in children]
     total = sum(counts) or 1
     start_x = x - unit_w / 2
     cursor = 0.0
+
     for (bit, child), count in zip(children, counts):
         child_w = unit_w * (count / total)
         child_x = start_x + cursor + child_w / 2
-        top_y, bottom_y = y + r, y + LEVEL_H - LEAF_HALF_H - 6
-        canvas.create_line(x, top_y, child_x, bottom_y, fill=theme.BORDER_LIGHT, width=2)
+        
+        # Calculate line endpoints dynamically based on target node shape
+        top_y = y + r
+        child_offset = LEAF_HALF_H if child.is_leaf() else NODE_RADIUS
+        bottom_y = y + LEVEL_H - child_offset
+
+        # Branch connection line
+        canvas.create_line(x, top_y, child_x, bottom_y, fill=theme.BORDER_LIGHT, width=3)
+
+        # Edge direction badges ('0' / '1')
         if show_edge_labels:
             mid_x, mid_y = (x + child_x) / 2, (top_y + bottom_y) / 2
             label_color = theme.CYAN if bit == "0" else theme.GREEN
             lr = EDGE_LABEL_RADIUS
-            canvas.create_oval(mid_x - lr, mid_y - lr, mid_x + lr, mid_y + lr,
-                                fill=theme.BG, outline=theme.BORDER_LIGHT)
-            canvas.create_text(mid_x, mid_y, text=bit,
-                                font=theme.canvas_font(10, "bold"), fill=label_color)
+            canvas.create_oval(
+                mid_x - lr, mid_y - lr, mid_x + lr, mid_y + lr,
+                fill=theme.BG, outline=theme.BORDER_LIGHT
+            )
+            canvas.create_text(
+                mid_x, mid_y, text=bit,
+                font=theme.canvas_font(10, "bold"), fill=label_color
+            )
+
+        # Recursive call
         _draw_node(canvas, child, child_x, y + LEVEL_H, child_w, False, show_edge_labels)
         cursor += child_w
 

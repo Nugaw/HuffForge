@@ -12,7 +12,7 @@ BG = "#0b0f19"            # window background
 CARD_BG = "#131826"       # card / panel background
 CARD_BG_LIGHT = "#1a2033"  # slightly raised surface (e.g. plain tree nodes)
 BORDER = "#232a3d"
-BORDER_LIGHT = "#2e3650"
+BORDER_LIGHT = "#c1c2c8"
 
 # -- accents -------------------------------------------------------------
 CYAN = "#22d3ee"
