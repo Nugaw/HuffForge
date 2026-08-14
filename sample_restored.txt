@@ -1,0 +1,5 @@
+Huffman coding is a classic example of a greedy algorithm that builds
+an optimal binary tree for lossless data compression. Characters that
+appear more frequently get shorter binary codes, while rarer characters
+get longer codes. No code is ever a prefix of another code, which is
+what makes the encoded bitstream uniquely decodable.

@@ -415,24 +415,54 @@ class CompressPage(ctk.CTkFrame):
         if not path:
             return
         try:
-            result = zipper.compress_file(path)
+            # Read input file directly
+            with open(path, "rb") as f:
+                data = f.read()
+
+            extension = os.path.splitext(path)[1]
+            # Compress in-memory (returns compressed bytes)
+            compressed_bytes = zipper.compress_bytes(data, extension)
         except Exception as exc:
             messagebox.showerror("Compression failed", str(exc))
             return
-        self.last_result = result
-        self.metric_labels["original"].configure(text=f"{result['original_size']:,} Bytes")
+
+        original_size = len(data)
+        compressed_size = len(compressed_bytes)
+        ratio = (1 - compressed_size / original_size) * 100 if original_size else 0
+        default_name = os.path.splitext(os.path.basename(path))[0] + ".huf"
+
+        # Store results in memory
+        self.last_result = {
+            "output_bytes": compressed_bytes,
+            "default_name": default_name,
+            "original_size": original_size,
+            "compressed_size": compressed_size,
+            "ratio_percent": ratio,
+        }
+
+        # Update metrics panel
+        self.metric_labels["original"].configure(text=f"{original_size:,} Bytes")
         self.metric_labels["compressed"].configure(
-            text=f"{result['compressed_size']:,} Bytes", text_color=theme.GREEN)
+            text=f"{compressed_size:,} Bytes", text_color=theme.GREEN
+        )
         self.metric_labels["ratio"].configure(
-            text=f"{result['ratio_percent']:.1f}% Efficiency", text_color=theme.CYAN)
-        self._draw_ring(result["ratio_percent"])
+            text=f"{ratio:.1f}% Efficiency", text_color=theme.CYAN
+        )
+        self._draw_ring(ratio)
         self.save_as_btn.configure(state="normal")
 
+        # Write console log
         freq_table = zipper.get_last_top_frequencies(None)
-        self._write_log(console_log.compress_log_lines(
-            os.path.basename(path), result["original_size"], freq_table,
-            result["output_path"], result["compressed_size"], result["ratio_percent"],
-        ))
+        self._write_log(
+            console_log.compress_log_lines(
+                os.path.basename(path),
+                original_size,
+                freq_table,
+                default_name,
+                compressed_size,
+                ratio,
+            )
+        )
         self.app.enable_tree_page(f"Compressed {os.path.basename(path)}")
 
     def _do_decompress(self):
@@ -443,40 +473,77 @@ class CompressPage(ctk.CTkFrame):
         if not path:
             return
         try:
-            compressed_size = os.path.getsize(path)
-            result = zipper.decompress_file(path)
+            with open(path, "rb") as f:
+                blob = f.read()
+
+            compressed_size = len(blob)
+            # Decompress in-memory (returns restored bytes and original file extension)
+            decompressed_bytes, extension = zipper.decompress_bytes(blob)
         except Exception as exc:
             messagebox.showerror("Decompression failed", str(exc))
             return
-        self.last_result = result
+
+        stem = os.path.splitext(os.path.basename(path))[0]
+        default_name = f"{stem}_restored{extension}" if extension else f"{stem}_restored"
+
+        # Store results in memory
+        self.last_result = {
+            "output_bytes": decompressed_bytes,
+            "default_name": default_name,
+            "output_size": len(decompressed_bytes),
+        }
+
+        # Update metrics panel
         self.metric_labels["original"].configure(text=f"{compressed_size:,} Bytes")
         self.metric_labels["compressed"].configure(
-            text=f"{result['output_size']:,} Bytes", text_color=theme.GREEN)
+            text=f"{len(decompressed_bytes):,} Bytes", text_color=theme.GREEN
+        )
         self.metric_labels["ratio"].configure(text="Restored", text_color=theme.GREEN)
         self.save_as_btn.configure(state="normal")
 
-        self._write_log(console_log.decompress_log_lines(
-            os.path.basename(path), compressed_size,
-            leaf_count(zipper.get_last_tree()), result["output_path"], result["output_size"],
-        ))
+        # Write console log
+        self._write_log(
+            console_log.decompress_log_lines(
+                os.path.basename(path),
+                compressed_size,
+                leaf_count(zipper.get_last_tree()),
+                default_name,
+                len(decompressed_bytes),
+            )
+        )
         self.app.enable_tree_page(f"Decompressed {os.path.basename(path)}")
 
     def save_output_as(self):
-        if not self.last_result:
+        if not self.last_result or "output_bytes" not in self.last_result:
             return
-        src = self.last_result["output_path"]
-        default_name = os.path.basename(src)
-        dest = filedialog.asksaveasfilename(initialfile=default_name)
+
+        default_name = self.last_result["default_name"]
+
+        # Configure file save dialog filters according to mode
+        if self.mode == "compress":
+            filetypes = (("Huffman archives", "*.huf"), ("All files", "*.*"))
+            def_ext = ".huf"
+        else:
+            filetypes = (("All files", "*.*"),)
+            def_ext = ""
+
+        dest = filedialog.asksaveasfilename(
+            initialfile=default_name,
+            defaultextension=def_ext,
+            filetypes=filetypes,
+        )
         if not dest:
             return
+
         try:
-            with open(src, "rb") as f_in, open(dest, "wb") as f_out:
-                f_out.write(f_in.read())
+            # Safely write memory buffer to target location
+            with open(dest, "wb") as f_out:
+                f_out.write(self.last_result["output_bytes"])
         except OSError as exc:
             messagebox.showerror("Couldn't save file", str(exc))
             return
-        messagebox.showinfo("Saved", f"Saved a copy to:\n{dest}")
 
+        messagebox.showinfo("Saved", f"File saved successfully to:\n{dest}")
 
 # ---------------------------------------------------------------------------
 # Tree Visualizer page
