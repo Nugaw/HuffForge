@@ -138,45 +138,76 @@ class DashboardPage(ctk.CTkFrame):
                          text_color=theme.TEXT_SECONDARY, justify="left", anchor="w"
                          ).pack(fill="x", pady=(4, 0))
 
-    def _feature_card(self, parent, col, icon, icon_color, title, body, button_text, button_color, button_hover, button_text_color, target, bordered=False):
-        # Enlarged dimensions (480x390) so scaled fonts fit perfectly
+    def _feature_card(
+        self, parent, col, icon, icon_color, title, body, 
+        button_text, button_color, button_hover, button_text_color, 
+        target, bordered=False
+    ):
+        # FIX: Use None instead of "transparent" for border_color
         card = _card(
-            parent, width=480, height=390,
+            parent, width=600, height=600,
             border_width=1 if bordered else 0,
             border_color=theme.CYAN_DIM if bordered else None
         )
-        card.grid(row=0, column=col, padx=16)
+        card.grid(row=0, column=col, padx=16, sticky="nsew")
         card.pack_propagate(False)
 
         inner = ctk.CTkFrame(card, fg_color="transparent")
         inner.pack(fill="both", expand=True, padx=28, pady=24)
 
-        # Icon badge
+        # 1. Pack Button first at the bottom so it never gets clipped
+        ctk.CTkButton(
+            inner, 
+            text=button_text, 
+            fg_color=button_color,
+            hover_color=button_hover, 
+            text_color=button_text_color,
+            font=theme.font(12, "bold"), 
+            height=42, 
+            corner_radius=10,
+            command=lambda t=target: self._navigate_to(t)
+        ).pack(side="bottom", anchor="w", fill="x")
+
+        # 2. Pack Header & Icon
         ctk.CTkLabel(
             inner, text=icon, font=theme.font(20), text_color=icon_color,
             fg_color=theme.CARD_BG_LIGHT, corner_radius=12, width=52, height=52
         ).pack(anchor="w", pady=(0, 16))
 
-        # Card Title (wrapped to prevents horizontal truncation)
+        # 3. Card Title
         ctk.CTkLabel(
-            inner, text=title, font=theme.font(16, "bold"),
+            inner, text=title, font=theme.font(18, "bold"),
             text_color=theme.TEXT_PRIMARY, anchor="w", justify="left",
             wraplength=420
         ).pack(anchor="w", pady=(0, 10))
 
-        # Description text
+        # 4. Description text
         ctk.CTkLabel(
-            inner, text=body, font=theme.font(11), wraplength=420,
+            inner, text=body, font=theme.font(12), wraplength=500,
             text_color=theme.TEXT_SECONDARY, justify="left", anchor="nw"
-        ).pack(anchor="w", fill="x", pady=(0, 20))
+        ).pack(anchor="w", fill="both", expand=True, pady=(0, 12))
 
-        # Button
-        ctk.CTkButton(
-            inner, text=button_text, fg_color=button_color,
-            hover_color=button_hover, text_color=button_text_color,
-            font=theme.font(12, "bold"), height=42, corner_radius=10,
-            command=lambda: self.app.show_page(target)
-        ).pack(anchor="w")
+    def _navigate_to(self, page_name: str):
+        """Robust navigation handler that works with various App frame structures."""
+        # Normalize target names
+        target_map = {
+            "compress": "compress",
+            "decompress": "compress",
+            "tree": "tree",
+            "visualizer": "tree"
+        }
+        route = target_map.get(page_name.lower(), page_name)
+
+        if hasattr(self.app, "show_page"):
+            self.app.show_page(route)
+        elif hasattr(self.app, "select_page"):
+            self.app.select_page(route)
+        elif hasattr(self.app, "show_frame"):
+            self.app.show_frame(route)
+        elif hasattr(self.app, "tabview"):
+            self.app.tabview.set(route.capitalize())
+        else:
+            print(f"[Navigation Error] Could not route to page: '{route}'. Check app navigation method.")
 # ---------------------------------------------------------------------------
 # Compress / Decompress page
 
