@@ -502,17 +502,17 @@ class TreePage(ctk.CTkFrame):
             command=self.build_from_entry
         ).grid(row=0, column=1, padx=(0, 8))
 
-        ctk.CTkButton(
-            row2, text="Textbook example", height=48, font=theme.font(13),
-            fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
-            text_color=theme.TEXT_PRIMARY, command=self.load_textbook_example
-        ).grid(row=0, column=2, padx=(0, 8))
+        # ctk.CTkButton(
+        #     row2, text="Textbook example", height=48, font=theme.font(13),
+        #     fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
+        #     text_color=theme.TEXT_PRIMARY, command=self.load_textbook_example
+        # ).grid(row=0, column=2, padx=(0, 8))
 
-        ctk.CTkButton(
-            row2, text="Visualize my last file", height=48, font=theme.font(13),
-            fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
-            text_color=theme.TEXT_PRIMARY, command=self.build_from_last_file
-        ).grid(row=0, column=3)
+        # ctk.CTkButton(
+        #     row2, text="Visualize my last file", height=48, font=theme.font(13),
+        #     fg_color=theme.CARD_BG_LIGHT, hover_color=theme.BORDER_LIGHT,
+        #     text_color=theme.TEXT_PRIMARY, command=self.build_from_last_file
+        # ).grid(row=0, column=3)
 
         # -- Tree Canvas --------------------------------------------------
         self.canvas_frame, self.canvas = _scrollable_canvas(wrapper)

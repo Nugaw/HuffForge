@@ -52,16 +52,16 @@ def _draw_node(canvas, node, x, y, unit_w, highlight, show_edge_labels):
         )
         # Symbol label (Shifted higher to prevent overlapping)
         canvas.create_text(
-            x, y - 13, 
+            x, y - 20, 
             text=format_label(node.symbol),
-            font=theme.canvas_font(14, "bold"), 
+            font=theme.canvas_font(10, "bold"), 
             fill=theme.TEXT_PRIMARY
         )
         # Frequency label (Shifted lower with clean spacing)
         canvas.create_text(
-            x, y + 13, 
+            x, y + 15, 
             text=f"f: {node.freq}",
-            font=theme.canvas_font(10, "bold"), 
+            font=theme.canvas_font(9), 
             fill=theme.CYAN
         )
         return
@@ -88,7 +88,7 @@ def _draw_node(canvas, node, x, y, unit_w, highlight, show_edge_labels):
         canvas.create_text(
             x, y - r - 14, 
             text="merged",
-            font=theme.canvas_font(9, "italic"), 
+            font=theme.canvas_font(5, "italic"), 
             fill=theme.GREEN
         )
 
