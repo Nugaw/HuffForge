@@ -267,15 +267,15 @@ class CompressPage(ctk.CTkFrame):
         c.create_rectangle(6, 6, w - 6, h - 6, outline=theme.CYAN_DIM,
                             dash=(6, 4), width=2)
         icon = "\u2601" if self.mode == "compress" else "\U0001F4E4"
-        c.create_text(w / 2, h / 2 - 64, text=icon, font=theme.canvas_font(38),
+        c.create_text(w / 2, h / 2 - 70, text=icon, font=theme.canvas_font(30),
                       fill=theme.CYAN)
         if self.mode == "compress":
             main_text, sub_text = "Drop your file here", "Any file type - click to browse"
         else:
             main_text, sub_text = "Drop your .huf archive here", "Click to browse for a .huf file"
-        c.create_text(w / 2, h / 2, text=main_text, font=theme.canvas_font(17, "bold"),
+        c.create_text(w / 2, h / 2, text=main_text, font=theme.canvas_font(12, "bold"),
                       fill=theme.TEXT_PRIMARY)
-        c.create_text(w / 2, h / 2 + 32, text=sub_text, font=theme.canvas_font(12),
+        c.create_text(w / 2, h / 2 + 40, text=sub_text, font=theme.canvas_font(9, "italic"),
                       fill=theme.TEXT_MUTED)
 
     # -- metrics panel --------------------------------------------------
@@ -311,7 +311,7 @@ class CompressPage(ctk.CTkFrame):
             self.metric_labels[key] = value_label
 
         if self.mode == "compress":
-            self.ring_canvas = tk.Canvas(body, width=180, height=180,
+            self.ring_canvas = tk.Canvas(body, width=300, height=300,
                                          bg=theme.CARD_BG, highlightthickness=0)
             self.ring_canvas.grid(row=0, column=1, padx=(24, 0), sticky="n")
             self._draw_ring(0)
@@ -349,18 +349,17 @@ class CompressPage(ctk.CTkFrame):
     def _draw_ring(self, percent):
         c = self.ring_canvas
         c.delete("all")
-        cx, cy, r, w = 90, 90, 70, 14
+        cx, cy, r, w = 110, 110, 100, 15
         c.create_oval(cx - r, cy - r, cx + r, cy + r, outline=theme.BORDER_LIGHT, width=w)
         clipped = max(0.0, min(percent, 100.0))
         if clipped > 0:
             extent = -clipped * 3.6
             c.create_arc(cx - r, cy - r, cx + r, cy + r, start=90, extent=extent,
                          style="arc", outline=theme.CYAN, width=w)
-        c.create_text(cx, cy - 8, text=f"{percent:.1f}%", font=theme.canvas_font(20, "bold"),
+        c.create_text(cx, cy - 10, text=f"{percent:.1f}%", font=theme.canvas_font(15, "bold"),
                       fill=theme.TEXT_PRIMARY)
-        c.create_text(cx, cy + 18, text="SPACE SAVED", font=theme.canvas_font(9, "bold"),
+        c.create_text(cx, cy + 22, text="SPACE SAVED", font=theme.canvas_font(5),
                       fill=theme.TEXT_SECONDARY)
-
     # -- console log --------------------------------------------------
 
     def _write_log(self, lines):
