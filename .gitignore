@@ -11,6 +11,7 @@ __pycache__/
 # Files this tool generates while you're testing it
 *.huf
 *_decompressed.*
+*_restored.*
 
 # Editor/IDE folders
 .vscode/
